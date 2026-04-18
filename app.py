@@ -725,33 +725,71 @@ elif page == "conciliacao":
     with c3: col_data_s = st.selectbox("Data (sistema)", cols_sis, key="ccs_d2")
     with c4: col_val_s  = st.selectbox("Valor (sistema)", cols_sis, index=min(2,len(cols_sis)-1), key="ccs_v2")
 
-    # Filtro de tipo (ex: excluir Transferência do Meu Dinheiro, Conta Azul, etc.)
+    # Filtro extrato bancário — excluir aplicações/resgates automáticos
     st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.5rem;">Filtrar transferências internas (extrato bancário)</div>', unsafe_allow_html=True)
+    st.caption("Aplicações automáticas e resgates do Itaú (ex: APLIC AUT MAIS) se cancelam e zeram os totais. Marque para excluí-los.")
+
+    palavras_padrao = ["APLIC AUT","RES APLIC","APL APLIC","RENDIMENTOS REND PAGO","TRANSF PROPRIA","TED PROPRIA"]
+
+    col_ext_filtro1, col_ext_filtro2 = st.columns([1,2])
+    with col_ext_filtro1:
+        usar_filtro_ext = st.checkbox("Excluir transferências internas do extrato", value=True, key="chk_ext_filtro")
+    with col_ext_filtro2:
+        if usar_filtro_ext:
+            # Detecta coluna de descrição no extrato
+            desc_cols_ext = [c for c in cols_ext if any(x in c.lower() for x in ["desc","memo","hist","nome","name"])]
+            col_desc_ext_filtro = st.selectbox(
+                "Coluna de descrição (extrato)",
+                cols_ext,
+                index=cols_ext.index(desc_cols_ext[0]) if desc_cols_ext else min(1,len(cols_ext)-1),
+                key="cce_desc_filtro"
+            )
+            palavras_excluir_ext = st.multiselect(
+                "Palavras-chave para excluir",
+                options=palavras_padrao + sorted(set(df_ext_raw[col_desc_ext_filtro].dropna().unique().tolist()) - set(palavras_padrao))[:20],
+                default=palavras_padrao,
+                key="ext_palavras"
+            )
+
+    if usar_filtro_ext and palavras_excluir_ext:
+        mask_ext = df_ext_raw[col_desc_ext_filtro].str.upper().str.contains(
+            "|".join([re.escape(p) for p in palavras_excluir_ext]), na=False
+        )
+        n_antes_ext = len(df_ext_raw)
+        df_ext_raw = df_ext_raw[~mask_ext].copy()
+        n_depois_ext = len(df_ext_raw)
+        st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes_ext - n_depois_ext} lançamentos internos excluídos do extrato · {n_depois_ext} restantes</div>', unsafe_allow_html=True)
+
+    # Filtro de tipo sistema (ex: excluir Transferência do Meu Dinheiro, Conta Azul, etc.)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.5rem;">Filtrar transferências internas (sistema de gestão)</div>', unsafe_allow_html=True)
+    st.caption("Se o sistema exporta uma coluna 'Tipo', selecione e marque 'Transferência' para excluir.")
+
     col_tipo_col, col_tipo_excl = st.columns(2)
     with col_tipo_col:
         cols_sis_opcoes = ["— Nenhum (usar todos os lançamentos) —"] + cols_sis
         col_tipo_sis = st.selectbox(
-            "Coluna de tipo de lançamento (sistema)",
+            "Coluna de tipo (sistema)",
             cols_sis_opcoes, key="ccs_tipo",
-            help="Se o sistema exporta uma coluna com 'Tipo' (ex: Receita, Despesa, Transferência), selecione aqui para filtrar."
+            help="Ex: coluna 'Tipo' do Meu Dinheiro com valores Receita, Despesa, Transferência."
         )
     with col_tipo_excl:
         tipos_excluir = []
         if col_tipo_sis != "— Nenhum (usar todos os lançamentos) —":
             tipos_unicos = df_sis_raw[col_tipo_sis].dropna().unique().tolist()
             tipos_excluir = st.multiselect(
-                "Excluir tipos (ex: Transferência)",
+                "Excluir tipos",
                 tipos_unicos,
                 default=[t for t in tipos_unicos if "transfer" in str(t).lower()],
                 key="ccs_excluir",
-                help="Transferências internas se cancelam e distorcem os totais. Recomendado excluí-las."
             )
 
     if col_tipo_sis != "— Nenhum (usar todos os lançamentos) —" and tipos_excluir:
         n_antes = len(df_sis_raw)
         df_sis_raw = df_sis_raw[~df_sis_raw[col_tipo_sis].isin(tipos_excluir)].copy()
         n_depois = len(df_sis_raw)
-        st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes - n_depois} transferências excluídas · {n_depois} lançamentos restantes</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes - n_depois} transferências excluídas do sistema · {n_depois} lançamentos restantes</div>', unsafe_allow_html=True)
 
     # Tipo análise + período
     st.markdown("<br>", unsafe_allow_html=True)
