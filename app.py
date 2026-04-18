@@ -395,11 +395,11 @@ with st.sidebar:
     st.markdown("<hr style='margin:0.4rem 0 0.6rem;'>", unsafe_allow_html=True)
 
     nav = {
-        "🏛️  Marca & Apresentação": "marca",
-        "🔎  Auditoria Bancária":    "auditoria",
-        "⚖️  Conciliação":          "conciliacao",
-        "📊  Conversor OFX → Excel": "conversor",
-        "💼  Serviços & Contato":    "servicos",
+        "🏛️  Marca & Apresentação":     "marca",
+        "🔎  Auditoria de Lançamentos": "auditoria",
+        "⚖️  Conciliação de Saldo":     "conciliacao",
+        "📊  Conversor OFX → Excel":    "conversor",
+        "💼  Serviços & Contato":       "servicos",
     }
     for label, key in nav.items():
         if st.button(label, key=f"nav_{key}", use_container_width=True):
@@ -487,152 +487,195 @@ if page == "marca":
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# 2. AUDITORIA BANCÁRIA
+# 2. AUDITORIA DE LANÇAMENTOS
+# Foco: cada transação do extrato existe no sistema? (linha a linha)
 # ════════════════════════════════════════════════════════════════════════════
 elif page == "auditoria":
-    st.markdown('<div class="page-title">Auditoria Bancária</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Cruze o extrato bancário com o sistema de gestão e identifique divergências</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-title">Auditoria de Lançamentos</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="page-sub">Verifica se cada lançamento do extrato bancário está registrado no sistema de gestão
+    — linha por linha, independente de período.</div>
+    """, unsafe_allow_html=True)
 
-    col_ext, col_sis = st.columns(2)
-
-    with col_ext:
-        st.markdown("""<div class="section-card">
-        <div class="section-card-title">📄 Extrato Bancário</div>""", unsafe_allow_html=True)
-        st.markdown("*Formatos aceitos: OFX, CSV, Excel*")
-        f_ext = st.file_uploader("Extrato", type=["ofx","ofc","csv","xlsx","xls","txt"], key="aud_ext", label_visibility="collapsed")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    with col_sis:
-        st.markdown("""<div class="section-card">
-        <div class="section-card-title">💻 Sistema de Gestão</div>""", unsafe_allow_html=True)
-        st.markdown("*Formatos aceitos: CSV, Excel*")
-        f_sis = st.file_uploader("Sistema", type=["csv","xlsx","xls"], key="aud_sis", label_visibility="collapsed")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Mapeamento de colunas
-    if f_ext and f_sis:
-        df_ext = load_file(f_ext)
-        df_sis = load_file(f_sis)
-
-        if not df_ext.empty and not df_sis.empty:
-            st.markdown("---")
-            st.markdown("**Mapeamento de colunas**")
-            c1, c2, c3 = st.columns(3)
-            cols_ext = df_ext.columns.tolist()
-            cols_sis = df_sis.columns.tolist()
-
-            with c1:
-                ce_data  = st.selectbox("Data (extrato)",   cols_ext, key="ce_data")
-                cs_data  = st.selectbox("Data (sistema)",   cols_sis, key="cs_data")
-            with c2:
-                ce_desc  = st.selectbox("Descrição (extrato)", cols_ext, index=min(1, len(cols_ext)-1), key="ce_desc")
-                cs_desc  = st.selectbox("Descrição (sistema)", cols_sis, index=min(1, len(cols_sis)-1), key="cs_desc")
-            with c3:
-                ce_val   = st.selectbox("Valor (extrato)",  cols_ext, index=min(2, len(cols_ext)-1), key="ce_val")
-                cs_val   = st.selectbox("Valor (sistema)",  cols_sis, index=min(2, len(cols_sis)-1), key="cs_val")
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            col_btn, _ = st.columns([1, 3])
-            with col_btn:
-                executar = st.button("🔎  Executar Auditoria", key="btn_audit", use_container_width=True)
-
-            if executar:
-                with st.spinner("Auditando…"):
-                    result = run_conciliacao(df_ext, df_sis, ce_val, cs_val, ce_desc, cs_desc, ce_data, cs_data)
-
-                total   = len(result)
-                ok      = (result["Status"] == "✅ Conciliado").sum()
-                div     = (result["Status"] == "❌ Divergência").sum()
-                only_e  = (result["Status"] == "⚠️ Só no Extrato").sum()
-                only_s  = (result["Status"] == "ℹ️ Só no Sistema").sum()
-
-                # Métricas
-                m1, m2, m3, m4, m5 = st.columns(5)
-                for col, lbl, val, cls in [
-                    (m1, "Total",          str(total),  ""),
-                    (m2, "Conciliados",    str(ok),     "green"),
-                    (m3, "Divergências",   str(div),    "red"),
-                    (m4, "Só no Extrato",  str(only_e), "amber"),
-                    (m5, "Só no Sistema",  str(only_s), "amber"),
-                ]:
-                    col.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">{lbl}</div>
-                        <div class="metric-value {cls}">{val}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                # Filtro
-                filtro = st.selectbox(
-                    "Filtrar por status",
-                    ["Todos", "✅ Conciliado", "❌ Divergência", "⚠️ Só no Extrato", "ℹ️ Só no Sistema"],
-                    key="audit_filter"
-                )
-                df_show = result if filtro == "Todos" else result[result["Status"] == filtro]
-
-                # Formatar valores
-                for c in ["Valor_Extrato", "Valor_Sistema", "Diferença"]:
-                    if c in df_show.columns:
-                        df_show = df_show.copy()
-                        df_show[c] = df_show[c].apply(
-                            lambda v: fmt_brl(v) if not (isinstance(v, float) and np.isnan(v)) else "—"
-                        )
-
-                st.dataframe(df_show, use_container_width=True, hide_index=True)
-
-                # Download
-                st.download_button(
-                    "⬇️  Exportar relatório Excel",
-                    data=to_excel_bytes(result),
-                    file_name=f"auditoria_crs_{datetime.today().strftime('%d%m%Y')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
-    else:
-        st.markdown("""
-        <div class="section-card" style="text-align:center;padding:2.5rem;">
-            <div style="font-size:2.5rem;margin-bottom:.75rem;">🔎</div>
-            <div style="color:#556688;font-size:0.88rem;">
-                Faça upload dos dois arquivos acima para iniciar a auditoria
+    st.markdown("""
+    <div class="section-card" style="margin-bottom:1rem;">
+        <div class="section-card-title">Como funciona</div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
+                <span style="color:#C9A84C;font-weight:600;">Entrada:</span> extrato bancário (OFX/CSV) 
+                + exportação do seu sistema (Omie, Conta Azul, Nibo, Sienge, Excel próprio…)
+            </div>
+            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
+                <span style="color:#C9A84C;font-weight:600;">Processo:</span> cada lançamento do extrato 
+                é buscado no sistema pelo valor + data
+            </div>
+            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
+                <span style="color:#C9A84C;font-weight:600;">Resultado:</span> lista com status individual 
+                — conciliado, divergência, não lançado no sistema
             </div>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
-        # Demonstração com dados sintéticos
-        with st.expander("📋  Ver exemplo com dados de demonstração"):
-            demo_ext = pd.DataFrame({
-                "Data":       ["01/04/2025","03/04/2025","05/04/2025","07/04/2025","10/04/2025","12/04/2025","15/04/2025"],
-                "Descrição":  ["TEF Recebida - Cliente Alfa","Pagto Fornecedor","Tarifa Bancária","TEF - Cliente Beta","Pagto Aluguel","Recebimento NF 0042","Folha de Pagamento"],
-                "Valor":      [4800.00, -1250.00, -45.00, 2300.00, -1800.00, 3600.00, -5200.00],
-            })
-            demo_sis = pd.DataFrame({
-                "Data":       ["01/04/2025","03/04/2025","05/04/2025","07/04/2025","10/04/2025","12/04/2025","17/04/2025"],
-                "Descrição":  ["Recebimento Alfa","Fornecedor","Tarifa","Recebimento Beta","Aluguel","NF 0042","Folha Abril"],
-                "Valor":      [4800.00, -1250.00, -38.00, 2300.00, -1800.00, 3600.00, -5200.00],
-            })
-            demo_result = run_conciliacao(demo_ext, demo_sis, "Valor", "Valor", "Descrição", "Descrição", "Data", "Data")
-            st.dataframe(demo_result, use_container_width=True, hide_index=True)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# 3. CONCILIAÇÃO AVANÇADA — OPÇÃO A (tudo na página)
-# ════════════════════════════════════════════════════════════════════════════
-elif page == "conciliacao":
-    st.markdown('<div class="page-title">Conferir Conciliação</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Compare o extrato bancário com o sistema de gestão financeiro</div>', unsafe_allow_html=True)
-
-    # ── ETAPA 1: Upload dos arquivos ─────────────────────────────────────────
-    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Etapa 1 — Carregar arquivos</div>', unsafe_allow_html=True)
+    # Upload
     col_u1, col_u2 = st.columns(2)
     with col_u1:
         st.markdown("**Extrato Bancário**")
-        st.caption("OFX, CSV ou Excel")
+        st.caption("OFX · CSV · Excel — exportado pelo banco")
+        f_aud_ext = st.file_uploader(" ", type=["ofx","ofc","csv","xlsx","xls","txt"],
+                                     key="aud_ext2", label_visibility="collapsed")
+    with col_u2:
+        st.markdown("**Sistema de Gestão**")
+        st.caption("CSV · Excel — exportado do Omie, Conta Azul, Nibo, Sienge ou Excel")
+        f_aud_sis = st.file_uploader(" ", type=["csv","xlsx","xls"],
+                                     key="aud_sis2", label_visibility="collapsed")
+
+    if not f_aud_ext or not f_aud_sis:
+        st.markdown("""
+        <div class="section-card" style="text-align:center;padding:2rem;margin-top:1rem;">
+            <div style="font-size:2rem;margin-bottom:.5rem;">🔎</div>
+            <div style="color:#556688;font-size:0.85rem;">Carregue os dois arquivos para auditar os lançamentos</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.expander("Ver exemplo de resultado"):
+            demo_ext = pd.DataFrame({
+                "Data":      ["01/04/2025","03/04/2025","05/04/2025","07/04/2025","10/04/2025","12/04/2025","15/04/2025"],
+                "Descrição": ["TEF Recebida - Alfa","Pagto Fornecedor","Tarifa Bancária","TEF - Beta","Pagto Aluguel","NF 0042","Folha"],
+                "Valor":     [4800.00,-1250.00,-45.00,2300.00,-1800.00,3600.00,-5200.00],
+            })
+            demo_sis = pd.DataFrame({
+                "Data":      ["01/04/2025","03/04/2025","05/04/2025","07/04/2025","10/04/2025","12/04/2025","17/04/2025"],
+                "Descrição": ["Recebimento Alfa","Fornecedor","Tarifa","Recebimento Beta","Aluguel","NF 0042","Folha Abril"],
+                "Valor":     [4800.00,-1250.00,-38.00,2300.00,-1800.00,3600.00,-5200.00],
+            })
+            demo_r = run_conciliacao(demo_ext, demo_sis, "Valor","Valor","Descrição","Descrição","Data","Data")
+            st.dataframe(demo_r, use_container_width=True, hide_index=True)
+        st.stop()
+
+    try:
+        df_aud_ext = load_file(f_aud_ext)
+        df_aud_sis = load_file(f_aud_sis)
+    except Exception as e:
+        st.error(f"Erro ao ler arquivo: {e}")
+        st.stop()
+
+    if df_aud_ext.empty or df_aud_sis.empty:
+        st.warning("Um dos arquivos está vazio.")
+        st.stop()
+
+    # Aba Excel sistema
+    aba_aud = None
+    if f_aud_sis.name.endswith((".xlsx",".xls")):
+        try:
+            xls_a = pd.ExcelFile(f_aud_sis)
+            if len(xls_a.sheet_names) > 1:
+                aba_aud = st.selectbox("Aba do sistema", xls_a.sheet_names, key="aud_aba")
+                df_aud_sis = pd.read_excel(f_aud_sis, sheet_name=aba_aud)
+        except Exception:
+            pass
+
+    st.markdown("---")
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Mapear colunas</div>', unsafe_allow_html=True)
+
+    cols_ae = df_aud_ext.columns.tolist()
+    cols_as = df_aud_sis.columns.tolist()
+    c1,c2,c3,c4,c5,c6 = st.columns(6)
+    with c1: ae_data = st.selectbox("Data (extrato)", cols_ae, key="ae_data")
+    with c2: ae_desc = st.selectbox("Descrição (extrato)", cols_ae, index=min(1,len(cols_ae)-1), key="ae_desc")
+    with c3: ae_val  = st.selectbox("Valor (extrato)", cols_ae, index=min(2,len(cols_ae)-1), key="ae_val")
+    with c4: as_data = st.selectbox("Data (sistema)", cols_as, key="as_data")
+    with c5: as_desc = st.selectbox("Descrição (sistema)", cols_as, index=min(1,len(cols_as)-1), key="as_desc")
+    with c6: as_val  = st.selectbox("Valor (sistema)", cols_as, index=min(2,len(cols_as)-1), key="as_val")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔎  Auditar Lançamentos", key="btn_audit2"):
+        with st.spinner("Auditando lançamento por lançamento…"):
+            result = run_conciliacao(df_aud_ext, df_aud_sis, ae_val, as_val, ae_desc, as_desc, ae_data, as_data)
+
+        total  = len(result)
+        ok     = (result["Status"] == "✅ Conciliado").sum()
+        div    = (result["Status"] == "❌ Divergência").sum()
+        only_e = (result["Status"] == "⚠️ Só no Extrato").sum()
+        only_s = (result["Status"] == "ℹ️ Só no Sistema").sum()
+        taxa   = round(ok / total * 100, 1) if total else 0
+
+        st.markdown("---")
+        m1,m2,m3,m4,m5,m6 = st.columns(6)
+        for col,lbl,val,cls in [
+            (m1,"Total lançamentos", str(total), ""),
+            (m2,"Conciliados",       str(ok),    "green"),
+            (m3,"Divergências",      str(div),   "red"),
+            (m4,"Só no extrato",     str(only_e),"amber"),
+            (m5,"Só no sistema",     str(only_s),"amber"),
+            (m6,"Taxa conciliação",  f"{taxa}%", "green" if taxa>=95 else "amber"),
+        ]:
+            col.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">{lbl}</div>
+                <div class="metric-value {cls}">{val}</div>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        filtro = st.selectbox("Filtrar por status",
+            ["Todos","✅ Conciliado","❌ Divergência","⚠️ Só no Extrato","ℹ️ Só no Sistema"],
+            key="aud_filter2")
+        df_show = result if filtro=="Todos" else result[result["Status"]==filtro]
+
+        for c in ["Valor_Extrato","Valor_Sistema","Diferença"]:
+            if c in df_show.columns:
+                df_show = df_show.copy()
+                df_show[c] = df_show[c].apply(lambda v: fmt_brl(v) if not (isinstance(v,float) and np.isnan(v)) else "—")
+
+        st.dataframe(df_show, use_container_width=True, hide_index=True)
+        st.download_button("⬇️  Exportar Auditoria Excel",
+            data=to_excel_bytes(result),
+            file_name=f"auditoria_lancamentos_{datetime.today().strftime('%d%m%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 3. CONCILIAÇÃO DE SALDO
+# Foco: o saldo do banco bate com o saldo do sistema no período? (totais)
+# ════════════════════════════════════════════════════════════════════════════
+elif page == "conciliacao":
+    st.markdown('<div class="page-title">Conciliação de Saldo</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="page-sub">Verifica se o saldo total do banco bate com o saldo do sistema no período
+    — comparando totais diários, mensais e diferença acumulada.</div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="section-card" style="margin-bottom:1rem;">
+        <div class="section-card-title">Como funciona</div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
+                <span style="color:#C9A84C;font-weight:600;">Entrada:</span> extrato OFX/CSV do banco 
+                + exportação do sistema de gestão para o mesmo período
+            </div>
+            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
+                <span style="color:#C9A84C;font-weight:600;">Processo:</span> soma os valores por dia 
+                e compara banco vs sistema — ideal para fechamento mensal
+            </div>
+            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
+                <span style="color:#C9A84C;font-weight:600;">Resultado:</span> saldo do período no banco,
+                saldo no sistema, diferença e tabela por dia
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Upload
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        st.markdown("**Extrato Bancário**")
+        st.caption("OFX · CSV · Excel — exportado pelo banco")
         f_c_ext = st.file_uploader(" ", type=["ofx","ofc","csv","xlsx","xls","txt"],
                                    key="conc_ext", label_visibility="collapsed")
     with col_u2:
         st.markdown("**Sistema de Gestão**")
-        st.caption("CSV ou Excel")
+        st.caption("CSV · Excel — Omie · Conta Azul · Nibo · Sienge · Excel próprio")
         f_c_sis = st.file_uploader(" ", type=["csv","xlsx","xls"],
                                    key="conc_sis", label_visibility="collapsed")
 
@@ -640,31 +683,23 @@ elif page == "conciliacao":
         st.markdown("""
         <div class="section-card" style="text-align:center;padding:2rem;margin-top:1rem;">
             <div style="font-size:2rem;margin-bottom:.5rem;">⚖️</div>
-            <div style="color:#556688;font-size:0.85rem;">
-                Carregue os dois arquivos acima para continuar
-            </div>
+            <div style="color:#556688;font-size:0.85rem;">Carregue os dois arquivos para conciliar o saldo do período</div>
         </div>
         """, unsafe_allow_html=True)
         st.stop()
 
-    # ── Carrega os dados ──────────────────────────────────────────────────────
     try:
         df_ext_raw = load_file(f_c_ext)
     except Exception as e:
         st.error(f"Erro ao ler extrato: {e}")
         st.stop()
 
-    # Seleção de aba se Excel
     aba_sis = None
-    if f_c_sis.name.endswith((".xlsx", ".xls")):
+    if f_c_sis.name.endswith((".xlsx",".xls")):
         try:
             xls_tmp = pd.ExcelFile(f_c_sis)
             abas = xls_tmp.sheet_names
-            if len(abas) > 1:
-                st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin:.75rem 0;">Selecione a aba do Excel</div>', unsafe_allow_html=True)
-                aba_sis = st.selectbox("Aba do sistema", abas, key="conc_aba", label_visibility="collapsed")
-            else:
-                aba_sis = abas[0]
+            aba_sis = st.selectbox("Aba do sistema", abas, key="conc_aba") if len(abas)>1 else abas[0]
         except Exception:
             pass
 
@@ -675,33 +710,24 @@ elif page == "conciliacao":
         st.stop()
 
     if df_ext_raw.empty or df_sis_raw.empty:
-        st.warning("Um dos arquivos está vazio. Verifique o conteúdo.")
+        st.warning("Um dos arquivos está vazio.")
         st.stop()
 
-    # ── ETAPA 2: Mapeamento de colunas ────────────────────────────────────────
+    # Mapeamento
     st.markdown("---")
-    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Etapa 2 — Mapear colunas</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Mapear colunas</div>', unsafe_allow_html=True)
 
     cols_ext = df_ext_raw.columns.tolist()
     cols_sis = df_sis_raw.columns.tolist()
+    c1,c2,c3,c4 = st.columns(4)
+    with c1: col_data_e = st.selectbox("Data (extrato)", cols_ext, key="cce_d2")
+    with c2: col_val_e  = st.selectbox("Valor (extrato)", cols_ext, index=min(2,len(cols_ext)-1), key="cce_v2")
+    with c3: col_data_s = st.selectbox("Data (sistema)", cols_sis, key="ccs_d2")
+    with c4: col_val_s  = st.selectbox("Valor (sistema)", cols_sis, index=min(2,len(cols_sis)-1), key="ccs_v2")
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        col_data_e = st.selectbox("Data (Extrato)", cols_ext, key="cce_d2")
-    with c2:
-        col_val_e  = st.selectbox("Valor (Extrato)", cols_ext,
-                                  index=min(2, len(cols_ext)-1), key="cce_v2")
-    with c3:
-        col_data_s = st.selectbox("Data (Sistema)", cols_sis, key="ccs_d2")
-    with c4:
-        col_val_s  = st.selectbox("Valor (Sistema)", cols_sis,
-                                  index=min(2, len(cols_sis)-1), key="ccs_v2")
-
-    # ── ETAPA 3: Configurações de análise ─────────────────────────────────────
-    st.markdown("---")
-    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Etapa 3 — Configurar análise</div>', unsafe_allow_html=True)
-
-    ca1, ca2 = st.columns([2, 1])
+    # Tipo análise + período
+    st.markdown("<br>", unsafe_allow_html=True)
+    ca1,ca2 = st.columns([2,1])
     with ca1:
         tipo_analise = st.selectbox("Tipo de análise", [
             "Comparação de Valores por Dia",
@@ -709,145 +735,110 @@ elif page == "conciliacao":
             "Comparação por Chave Forte (Data+Valor)",
         ], key="conc_tipo")
     with ca2:
-        data_range = st.text_input("Intervalo de datas (opcional)",
-                                   placeholder="DD/MM/AAAA – DD/MM/AAAA",
-                                   key="conc_range")
+        data_range = st.text_input("Filtrar período (opcional)",
+                                   placeholder="DD/MM/AAAA – DD/MM/AAAA", key="conc_range")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    executar_conc = st.button("⚖️  Executar Conciliação", key="btn_conc", use_container_width=False)
+    if not st.button("⚖️  Conciliar Saldo", key="btn_conc"):
+        st.stop()
 
-    # ── ETAPA 4: Resultados ───────────────────────────────────────────────────
-    if executar_conc:
-        try:
-            df_ext = df_ext_raw.copy()
-            df_sis = df_sis_raw.copy()
+    try:
+        df_ext = df_ext_raw.copy()
+        df_sis = df_sis_raw.copy()
+        df_ext[col_val_e] = parse_numeric(df_ext[col_val_e])
+        df_sis[col_val_s] = parse_numeric(df_sis[col_val_s])
+        df_ext["_data"] = pd.to_datetime(df_ext[col_data_e], dayfirst=True, errors="coerce")
+        df_sis["_data"] = pd.to_datetime(df_sis[col_data_s], dayfirst=True, errors="coerce")
 
-            df_ext[col_val_e] = parse_numeric(df_ext[col_val_e])
-            df_sis[col_val_s] = parse_numeric(df_sis[col_val_s])
+        dt_min = df_ext["_data"].min()
+        dt_max = df_ext["_data"].max()
+        if data_range and "–" in data_range:
+            try:
+                partes = [p.strip() for p in data_range.split("–")]
+                dt_min = pd.to_datetime(partes[0], dayfirst=True)
+                dt_max = pd.to_datetime(partes[1], dayfirst=True)
+            except Exception:
+                pass
 
-            df_ext["_data"] = pd.to_datetime(df_ext[col_data_e], dayfirst=True, errors="coerce")
-            df_sis["_data"] = pd.to_datetime(df_sis[col_data_s], dayfirst=True, errors="coerce")
+        df_ext_f = df_ext[(df_ext["_data"]>=dt_min)&(df_ext["_data"]<=dt_max)].copy()
+        df_sis_f = df_sis[(df_sis["_data"]>=dt_min)&(df_sis["_data"]<=dt_max)].copy()
 
-            dt_min = df_ext["_data"].min()
-            dt_max = df_ext["_data"].max()
+        saldo_banco = df_ext_f[col_val_e].sum()
+        saldo_erp   = df_sis_f[col_val_s].sum()
+        diferenca   = saldo_banco - saldo_erp
 
-            if data_range and "–" in data_range:
-                try:
-                    partes = [p.strip() for p in data_range.split("–")]
-                    dt_min = pd.to_datetime(partes[0], dayfirst=True)
-                    dt_max = pd.to_datetime(partes[1], dayfirst=True)
-                except Exception:
-                    pass
+        periodo_txt = f"{dt_min.strftime('%d/%m/%Y')} a {dt_max.strftime('%d/%m/%Y')}"
+        st.markdown("---")
+        st.markdown(f'<div style="font-size:0.85rem;color:#8899BB;margin-bottom:1rem;">Período: <strong style="color:#C9A84C;">{periodo_txt}</strong></div>', unsafe_allow_html=True)
 
-            df_ext_f = df_ext[(df_ext["_data"] >= dt_min) & (df_ext["_data"] <= dt_max)].copy()
-            df_sis_f = df_sis[(df_sis["_data"] >= dt_min) & (df_sis["_data"] <= dt_max)].copy()
-
-            saldo_banco = df_ext_f[col_val_e].sum()
-            saldo_erp   = df_sis_f[col_val_s].sum()
-            diferenca   = saldo_banco - saldo_erp
-
-            # Período
-            periodo_txt = f"{dt_min.strftime('%d/%m/%Y')} a {dt_max.strftime('%d/%m/%Y')}"
-            st.markdown("---")
-            st.markdown(f'<div style="font-size:0.85rem;color:#8899BB;margin-bottom:1rem;">Período da análise: <strong style="color:#C9A84C;">{periodo_txt}</strong></div>', unsafe_allow_html=True)
-
-            # Saldos
-            c1, c2, c3 = st.columns(3)
-            for col, lbl, val, origem, neg in [
-                (c1, "Saldo do Período no Banco",   saldo_banco, "OFX", saldo_banco < 0),
-                (c2, "Saldo do Período no Sistema", saldo_erp,   "ERP", saldo_erp   < 0),
-                (c3, "Diferença",                   diferenca,   "BRL", diferenca   != 0),
-            ]:
-                cor_val = "#f87171" if neg else "#4ade80"
-                cor_brd = "#f87171" if neg else "#C9A84C"
-                col.markdown(f"""
-                <div style="background:#1B2A4A;border-radius:10px;padding:1rem 1.25rem;border-left:3px solid {cor_brd};margin-bottom:8px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                        <span style="font-size:0.7rem;color:#8899BB;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">{lbl}</span>
-                        <span style="font-size:0.65rem;background:#253550;color:#8899BB;padding:2px 7px;border-radius:4px;">{origem}</span>
-                    </div>
-                    <div style="font-size:1.3rem;font-weight:700;color:{cor_val};">{fmt_brl(val)}</div>
+        # Saldos em destaque
+        c1,c2,c3 = st.columns(3)
+        for col,lbl,val,origem,neg in [
+            (c1,"Saldo do Período no Banco",   saldo_banco,"OFX", saldo_banco<0),
+            (c2,"Saldo do Período no Sistema", saldo_erp,  "ERP", saldo_erp<0),
+            (c3,"Diferença",                   diferenca,  "BRL", diferenca!=0),
+        ]:
+            cor_val = "#f87171" if neg else "#4ade80"
+            cor_brd = "#f87171" if diferenca!=0 and col==c3 else "#C9A84C"
+            col.markdown(f"""
+            <div style="background:#1B2A4A;border-radius:10px;padding:1rem 1.25rem;border-left:3px solid {cor_brd};margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span style="font-size:0.68rem;color:#8899BB;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">{lbl}</span>
+                    <span style="font-size:0.65rem;background:#253550;color:#8899BB;padding:2px 7px;border-radius:4px;">{origem}</span>
                 </div>
-                """, unsafe_allow_html=True)
+                <div style="font-size:1.4rem;font-weight:700;color:{cor_val};">{fmt_brl(val)}</div>
+            </div>""", unsafe_allow_html=True)
 
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:0.8rem;color:#8899BB;margin-bottom:.75rem;">Análise: <strong style="color:#C9A84C;">{tipo_analise}</strong></div>', unsafe_allow_html=True)
+
+        # Tabela por tipo
+        if tipo_analise == "Comparação de Valores por Dia":
+            grp_e = df_ext_f.groupby("_data")[col_val_e].sum().reset_index()
+            grp_s = df_sis_f.groupby("_data")[col_val_s].sum().reset_index()
+            grp_e.columns=["Data","Banco"]; grp_s.columns=["Data","Sistema"]
+            result = pd.merge(grp_e,grp_s,on="Data",how="outer").fillna(0)
+            result["Diferença"] = result["Banco"]-result["Sistema"]
+            result["Status"] = result["Diferença"].apply(lambda v: "✅ OK" if abs(v)<0.01 else "❌ DIFF")
+            result["Data"] = result["Data"].dt.strftime("%d/%m/%Y")
+            for c in ["Banco","Sistema","Diferença"]:
+                result[c] = result[c].apply(fmt_brl)
+
+        elif tipo_analise == "Comparação de Movimentações por Dia":
+            grp_e = df_ext_f.groupby("_data")[col_val_e].count().reset_index()
+            grp_s = df_sis_f.groupby("_data")[col_val_s].count().reset_index()
+            grp_e.columns=["Data","Qtd Banco"]; grp_s.columns=["Data","Qtd Sistema"]
+            result = pd.merge(grp_e,grp_s,on="Data",how="outer").fillna(0)
+            result["Diferença Qtd"] = (result["Qtd Banco"]-result["Qtd Sistema"]).astype(int)
+            result["Status"] = result["Diferença Qtd"].apply(lambda v: "✅ OK" if v==0 else "❌ DIFF")
+            result["Data"] = result["Data"].dt.strftime("%d/%m/%Y")
+
+        else:  # Chave Forte
+            df_ext_f["_chave"] = df_ext_f["_data"].dt.strftime("%Y%m%d")+"_"+df_ext_f[col_val_e].round(2).astype(str)
+            df_sis_f["_chave"] = df_sis_f["_data"].dt.strftime("%Y%m%d")+"_"+df_sis_f[col_val_s].round(2).astype(str)
+            chaves_b = set(df_ext_f["_chave"]); chaves_s = set(df_sis_f["_chave"])
+            conc = chaves_b & chaves_s; so_b = chaves_b-chaves_s; so_s = chaves_s-chaves_b
+            ck1,ck2,ck3 = st.columns(3)
+            for col,lbl,val,cls in [(ck1,"Conciliados",len(conc),"green"),(ck2,"Só no Banco",len(so_b),"amber"),(ck3,"Só no Sistema",len(so_s),"amber")]:
+                col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin-bottom:.75rem;">Análise selecionada: <strong style="color:#C9A84C;">{tipo_analise}</strong></div>', unsafe_allow_html=True)
+            rows=[]
+            for _,r in df_ext_f.iterrows():
+                rows.append({"Data":r["_data"].strftime("%d/%m/%Y"),"Valor Banco":fmt_brl(r[col_val_e]),"Valor Sistema":"—","Status":"✅ Conciliado" if r["_chave"] in chaves_s else "⚠️ Só no Banco"})
+            for _,r in df_sis_f.iterrows():
+                if r["_chave"] not in chaves_b:
+                    rows.append({"Data":r["_data"].strftime("%d/%m/%Y"),"Valor Banco":"—","Valor Sistema":fmt_brl(r[col_val_s]),"Status":"ℹ️ Só no Sistema"})
+            result = pd.DataFrame(rows)
 
-            # Tabela de resultado
-            if tipo_analise == "Comparação de Valores por Dia":
-                grp_ext = df_ext_f.groupby("_data")[col_val_e].sum().reset_index()
-                grp_sis = df_sis_f.groupby("_data")[col_val_s].sum().reset_index()
-                grp_ext.columns = ["Data", "Banco"]
-                grp_sis.columns = ["Data", "Sistema"]
-                result = pd.merge(grp_ext, grp_sis, on="Data", how="outer").fillna(0)
-                result["Diferença"] = result["Banco"] - result["Sistema"]
-                result["Status"] = result["Diferença"].apply(lambda v: "✅ OK" if abs(v) < 0.01 else "❌ DIFF")
-                result["Data"] = result["Data"].dt.strftime("%d/%m/%Y")
-                for c in ["Banco", "Sistema", "Diferença"]:
-                    result[c] = result[c].apply(fmt_brl)
+        st.dataframe(result, use_container_width=True, hide_index=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.download_button("⬇️  Baixar Relatório de Conciliação",
+            data=to_excel_bytes(result),
+            file_name=f"conciliacao_saldo_{datetime.today().strftime('%d%m%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-            elif tipo_analise == "Comparação de Movimentações por Dia":
-                grp_ext = df_ext_f.groupby("_data")[col_val_e].count().reset_index()
-                grp_sis = df_sis_f.groupby("_data")[col_val_s].count().reset_index()
-                grp_ext.columns = ["Data", "Qtd Banco"]
-                grp_sis.columns = ["Data", "Qtd Sistema"]
-                result = pd.merge(grp_ext, grp_sis, on="Data", how="outer").fillna(0)
-                result["Diferença Qtd"] = (result["Qtd Banco"] - result["Qtd Sistema"]).astype(int)
-                result["Status"] = result["Diferença Qtd"].apply(lambda v: "✅ OK" if v == 0 else "❌ DIFF")
-                result["Data"] = result["Data"].dt.strftime("%d/%m/%Y")
-
-            else:  # Chave Forte
-                df_ext_f["_chave"] = (df_ext_f["_data"].dt.strftime("%Y%m%d") + "_" +
-                                      df_ext_f[col_val_e].round(2).astype(str))
-                df_sis_f["_chave"] = (df_sis_f["_data"].dt.strftime("%Y%m%d") + "_" +
-                                      df_sis_f[col_val_s].round(2).astype(str))
-                chaves_banco   = set(df_ext_f["_chave"])
-                chaves_sistema = set(df_sis_f["_chave"])
-                conciliados    = chaves_banco & chaves_sistema
-                so_banco       = chaves_banco - chaves_sistema
-                so_sistema     = chaves_sistema - chaves_banco
-
-                ck1, ck2, ck3 = st.columns(3)
-                for col, lbl, val, cls in [
-                    (ck1, "Conciliados",   len(conciliados), "green"),
-                    (ck2, "Só no Banco",   len(so_banco),    "amber"),
-                    (ck3, "Só no Sistema", len(so_sistema),  "amber"),
-                ]:
-                    col.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">{lbl}</div>
-                        <div class="metric-value {cls}">{val}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                rows = []
-                for _, r in df_ext_f.iterrows():
-                    rows.append({"Data": r["_data"].strftime("%d/%m/%Y"),
-                                 "Valor Banco": fmt_brl(r[col_val_e]),
-                                 "Valor Sistema": "—",
-                                 "Status": "✅ Conciliado" if r["_chave"] in chaves_sistema else "⚠️ Só no Banco"})
-                for _, r in df_sis_f.iterrows():
-                    if r["_chave"] not in chaves_banco:
-                        rows.append({"Data": r["_data"].strftime("%d/%m/%Y"),
-                                     "Valor Banco": "—",
-                                     "Valor Sistema": fmt_brl(r[col_val_s]),
-                                     "Status": "ℹ️ Só no Sistema"})
-                result = pd.DataFrame(rows)
-
-            st.dataframe(result, use_container_width=True, hide_index=True)
-
-            # Download
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.download_button(
-                "⬇️  Baixar Relatório Completo",
-                data=to_excel_bytes(result),
-                file_name=f"conciliacao_crs_{datetime.today().strftime('%d%m%Y')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-
-        except Exception as e:
-            st.error(f"Erro ao processar: {e}")
+    except Exception as e:
+        st.error(f"Erro ao processar: {e}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
