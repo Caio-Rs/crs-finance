@@ -287,6 +287,30 @@ def fmt_brl(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def parse_numeric(series: pd.Series) -> pd.Series:
+    """Converte coluna de valores para float, suportando formato BR (vírgula decimal)."""
+    def to_float(v):
+        if pd.isna(v):
+            return np.nan
+        s = str(v).strip()
+        # Remove espaços e símbolo R$
+        s = s.replace("R$", "").replace(" ", "").strip()
+        # Formato BR: 1.234,56 → remove ponto de milhar, troca vírgula por ponto
+        if "," in s and "." in s:
+            # ex: 1.234,56
+            s = s.replace(".", "").replace(",", ".")
+        elif "," in s:
+            # ex: 1234,56
+            s = s.replace(",", ".")
+        # Remove caracteres não numéricos exceto ponto e sinal
+        s = re.sub(r"[^\d.\-]", "", s)
+        try:
+            return float(s)
+        except Exception:
+            return np.nan
+    return series.apply(to_float)
+
+
 def parse_ofx(content: str) -> pd.DataFrame:
     rows = []
     for block in re.finditer(r"<STMTTRN>(.*?)</STMTTRN>", content, re.DOTALL | re.IGNORECASE):
@@ -326,8 +350,8 @@ def run_conciliacao(df_ext: pd.DataFrame, df_sis: pd.DataFrame,
     sis = df_sis[[col_data_sis, col_desc_sis, col_val_sis]].copy()
     ext.columns = ["Data", "Descrição", "Valor_Extrato"]
     sis.columns = ["Data", "Descrição", "Valor_Sistema"]
-    ext["Valor_Extrato"] = pd.to_numeric(ext["Valor_Extrato"], errors="coerce")
-    sis["Valor_Sistema"]  = pd.to_numeric(sis["Valor_Sistema"],  errors="coerce")
+    ext["Valor_Extrato"] = parse_numeric(ext["Valor_Extrato"])
+    sis["Valor_Sistema"]  = parse_numeric(sis["Valor_Sistema"])
     ext["_key"] = ext["Valor_Extrato"].round(2).astype(str)
     sis["_key"] = sis["Valor_Sistema"].round(2).astype(str)
 
@@ -349,10 +373,7 @@ def run_conciliacao(df_ext: pd.DataFrame, df_sis: pd.DataFrame,
         return "ℹ️ Só no Sistema"
 
     merged["Status"] = merged.apply(status, axis=1)
-    merged["Diferença"] = (
-        pd.to_numeric(merged.get("Valor_Extrato"), errors="coerce") -
-        pd.to_numeric(merged.get("Valor_Sistema"), errors="coerce")
-    )
+    merged["Diferença"] = merged["Valor_Extrato"] - merged["Valor_Sistema"]
     return merged
 
 
@@ -628,7 +649,7 @@ elif page == "conciliacao":
             st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;">Extrato Bancário</div>', unsafe_allow_html=True)
             df_left = df_ce[[col_e_data, col_e_desc, col_e_val]].copy()
             df_left.columns = ["Data", "Descrição", "Valor"]
-            df_left["Valor"] = pd.to_numeric(df_left["Valor"], errors="coerce")
+            df_left["Valor"] = parse_numeric(df_left["Valor"])
             st.dataframe(df_left, use_container_width=True, hide_index=True)
             total_ext = df_left["Valor"].sum()
             st.markdown(f'<div style="text-align:right;font-size:0.88rem;color:#C9A84C;font-weight:600;margin-top:4px;">Total: {fmt_brl(total_ext)}</div>', unsafe_allow_html=True)
@@ -637,7 +658,7 @@ elif page == "conciliacao":
             st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;">Sistema de Gestão</div>', unsafe_allow_html=True)
             df_right = df_cs[[col_s_data, col_s_desc, col_s_val]].copy()
             df_right.columns = ["Data", "Descrição", "Valor"]
-            df_right["Valor"] = pd.to_numeric(df_right["Valor"], errors="coerce")
+            df_right["Valor"] = parse_numeric(df_right["Valor"])
             st.dataframe(df_right, use_container_width=True, hide_index=True)
             total_sis = df_right["Valor"].sum()
             st.markdown(f'<div style="text-align:right;font-size:0.88rem;color:#C9A84C;font-weight:600;margin-top:4px;">Total: {fmt_brl(total_sis)}</div>', unsafe_allow_html=True)
@@ -781,3 +802,4 @@ elif page == "servicos":
         </div>
     </div>
     """, unsafe_allow_html=True)
+
