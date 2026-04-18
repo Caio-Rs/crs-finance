@@ -725,6 +725,34 @@ elif page == "conciliacao":
     with c3: col_data_s = st.selectbox("Data (sistema)", cols_sis, key="ccs_d2")
     with c4: col_val_s  = st.selectbox("Valor (sistema)", cols_sis, index=min(2,len(cols_sis)-1), key="ccs_v2")
 
+    # Filtro de tipo (ex: excluir Transferência do Meu Dinheiro, Conta Azul, etc.)
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_tipo_col, col_tipo_excl = st.columns(2)
+    with col_tipo_col:
+        cols_sis_opcoes = ["— Nenhum (usar todos os lançamentos) —"] + cols_sis
+        col_tipo_sis = st.selectbox(
+            "Coluna de tipo de lançamento (sistema)",
+            cols_sis_opcoes, key="ccs_tipo",
+            help="Se o sistema exporta uma coluna com 'Tipo' (ex: Receita, Despesa, Transferência), selecione aqui para filtrar."
+        )
+    with col_tipo_excl:
+        tipos_excluir = []
+        if col_tipo_sis != "— Nenhum (usar todos os lançamentos) —":
+            tipos_unicos = df_sis_raw[col_tipo_sis].dropna().unique().tolist()
+            tipos_excluir = st.multiselect(
+                "Excluir tipos (ex: Transferência)",
+                tipos_unicos,
+                default=[t for t in tipos_unicos if "transfer" in str(t).lower()],
+                key="ccs_excluir",
+                help="Transferências internas se cancelam e distorcem os totais. Recomendado excluí-las."
+            )
+
+    if col_tipo_sis != "— Nenhum (usar todos os lançamentos) —" and tipos_excluir:
+        n_antes = len(df_sis_raw)
+        df_sis_raw = df_sis_raw[~df_sis_raw[col_tipo_sis].isin(tipos_excluir)].copy()
+        n_depois = len(df_sis_raw)
+        st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes - n_depois} transferências excluídas · {n_depois} lançamentos restantes</div>', unsafe_allow_html=True)
+
     # Tipo análise + período
     st.markdown("<br>", unsafe_allow_html=True)
     ca1,ca2 = st.columns([2,1])
