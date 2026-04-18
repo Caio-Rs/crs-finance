@@ -1,0 +1,783 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import re
+import io
+from datetime import datetime
+
+# ── Configuração da página ────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="CRS Finance",
+    page_icon="💼",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ── CSS — Identidade CRS Finance ──────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+html, body, [class*="css"], .stApp {
+    font-family: 'DM Sans', sans-serif !important;
+    background-color: #0f1923 !important;
+    color: #e2e8f0 !important;
+}
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background-color: #1B2A4A !important;
+    border-right: 2px solid #C9A84C !important;
+}
+[data-testid="stSidebar"] * { color: #c8d0e0 !important; }
+[data-testid="stSidebarNav"] { display: none !important; }
+
+/* ── Barra dourada topo sidebar ── */
+[data-testid="stSidebar"]::before {
+    content: '';
+    display: block;
+    height: 3px;
+    background: #C9A84C;
+    margin-bottom: 0;
+}
+
+/* ── Main ── */
+.main .block-container {
+    background-color: #0f1923 !important;
+    padding: 2rem 2.5rem !important;
+    max-width: 1200px;
+}
+
+/* ── Logo ── */
+.crs-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -2px;
+    line-height: 1;
+}
+.crs-logo span { color: #C9A84C; }
+.crs-sub {
+    font-size: 0.65rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #8899BB;
+    font-weight: 300;
+    margin-top: 2px;
+    margin-bottom: 1.5rem;
+}
+
+/* ── Navegação sidebar ── */
+.stButton > button {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 8px !important;
+    color: #8899BB !important;
+    font-size: 0.88rem !important;
+    font-weight: 400 !important;
+    text-align: left !important;
+    padding: 9px 12px !important;
+    width: 100% !important;
+    transition: all 0.15s !important;
+}
+.stButton > button:hover {
+    background: rgba(201,168,76,0.1) !important;
+    color: #C9A84C !important;
+}
+
+/* ── Títulos de página ── */
+.page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: -0.5px;
+    margin-bottom: 0.25rem;
+}
+.page-sub {
+    font-size: 0.88rem;
+    color: #8899BB;
+    margin-bottom: 1.5rem;
+}
+
+/* ── Hero card ── */
+.hero-card {
+    background: #1B2A4A;
+    border-radius: 14px;
+    padding: 2rem;
+    border-top: 3px solid #C9A84C;
+    margin-bottom: 1.5rem;
+}
+.hero-brand {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.8rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -2px;
+    line-height: 1;
+}
+.hero-brand span { color: #C9A84C; }
+.hero-tagline {
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: #8899BB;
+    margin-top: 4px;
+}
+.hero-slogan {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-style: italic;
+    color: #C9A84C;
+    background: rgba(201,168,76,0.08);
+    border: 0.5px solid rgba(201,168,76,0.3);
+    border-radius: 8px;
+    padding: 10px 16px;
+    display: inline-block;
+    margin-top: 1.2rem;
+}
+.hero-name { font-size: 0.95rem; font-weight: 500; color: #fff; margin-top: 1.2rem; }
+.hero-role { font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: #C9A84C; }
+.hero-city { font-size: 0.78rem; color: #556688; margin-top: 2px; }
+
+/* ── Metric cards ── */
+.metric-card {
+    background: #1B2A4A;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    border-left: 3px solid #C9A84C;
+}
+.metric-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8899BB;
+    margin-bottom: 6px;
+}
+.metric-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    line-height: 1;
+}
+.metric-value.green { color: #4ade80; }
+.metric-value.red   { color: #f87171; }
+.metric-value.amber { color: #C9A84C; }
+
+/* ── Section card ── */
+.section-card {
+    background: #162236;
+    border: 0.5px solid #253550;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+}
+.section-card-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #C9A84C;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 0.5px solid #253550;
+}
+
+/* ── Upload zone ── */
+.upload-zone {
+    border: 1.5px dashed #253550;
+    border-radius: 10px;
+    padding: 1.5rem;
+    text-align: center;
+    color: #556688;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ── Status badges ── */
+.badge-ok   { background:#14532d; color:#86efac; padding:3px 10px; border-radius:99px; font-size:0.75rem; font-weight:600; }
+.badge-err  { background:#450a0a; color:#fca5a5; padding:3px 10px; border-radius:99px; font-size:0.75rem; font-weight:600; }
+.badge-warn { background:#422006; color:#fcd34d; padding:3px 10px; border-radius:99px; font-size:0.75rem; font-weight:600; }
+.badge-info { background:#1e3a5f; color:#93c5fd; padding:3px 10px; border-radius:99px; font-size:0.75rem; font-weight:600; }
+
+/* ── Tabela ── */
+.stDataFrame {
+    border: 0.5px solid #253550 !important;
+    border-radius: 10px !important;
+    background: #162236 !important;
+}
+
+/* ── Inputs ── */
+.stTextInput input, .stNumberInput input,
+.stSelectbox > div > div {
+    background: #162236 !important;
+    border: 0.5px solid #253550 !important;
+    color: #e2e8f0 !important;
+    border-radius: 8px !important;
+}
+label { color: #8899BB !important; font-size: 0.82rem !important; }
+
+/* ── Botão de ação ── */
+.action-btn > button {
+    background: #C9A84C !important;
+    color: #1B2A4A !important;
+    border: none !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+    padding: 0.55rem 1.5rem !important;
+}
+.action-btn > button:hover { opacity: 0.88 !important; }
+
+/* ── Serviços ── */
+.svc-card {
+    background: #1B2A4A;
+    border-radius: 10px;
+    padding: 1.1rem 1.25rem;
+    border-top: 2px solid #C9A84C;
+}
+.svc-title { font-size: 0.92rem; font-weight: 600; color: #fff; margin-bottom: 5px; }
+.svc-desc  { font-size: 0.82rem; color: #8899BB; line-height: 1.55; }
+.svc-price { font-size: 0.82rem; font-weight: 600; color: #C9A84C; margin-top: 8px; }
+
+/* ── Pipeline ── */
+.pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 1.2rem 0;
+}
+.pipe-step {
+    flex: 1;
+    text-align: center;
+}
+.pipe-num {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: #1B2A4A;
+    border: 2px solid #C9A84C;
+    color: #C9A84C;
+    font-size: 0.85rem;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 6px;
+}
+.pipe-label { font-size: 0.72rem; color: #8899BB; }
+.pipe-arrow { color: #C9A84C; font-size: 1rem; flex-shrink: 0; }
+
+/* ── Divider ── */
+hr { border-color: #253550 !important; margin: 1.5rem 0 !important; }
+
+/* ── Hide Streamlit defaults ── */
+#MainMenu, footer, .stDeployButton { display: none !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ── Session state ─────────────────────────────────────────────────────────────
+if "page" not in st.session_state:
+    st.session_state.page = "marca"
+
+
+# ── Funções utilitárias ───────────────────────────────────────────────────────
+def fmt_brl(v):
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return "—"
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def parse_ofx(content: str) -> pd.DataFrame:
+    rows = []
+    for block in re.finditer(r"<STMTTRN>(.*?)</STMTTRN>", content, re.DOTALL | re.IGNORECASE):
+        b = block.group(1)
+        def get(tag):
+            m = re.search(rf"<{tag}>\s*([^\n<]+)", b, re.IGNORECASE)
+            return m.group(1).strip() if m else ""
+        try:
+            dt = datetime.strptime(get("DTPOSTED")[:8], "%Y%m%d").strftime("%d/%m/%Y")
+        except Exception:
+            dt = get("DTPOSTED")
+        try:
+            val = float(get("TRNAMT").replace(",", "."))
+        except Exception:
+            val = 0.0
+        rows.append({"Data": dt, "Descrição": get("MEMO") or get("NAME"), "Valor": val})
+    return pd.DataFrame(rows)
+
+
+def load_file(uploaded) -> pd.DataFrame:
+    name = uploaded.name.lower()
+    if name.endswith(".csv"):
+        return pd.read_csv(uploaded)
+    elif name.endswith((".xlsx", ".xls")):
+        return pd.read_excel(uploaded)
+    elif name.endswith((".ofx", ".ofc", ".txt")):
+        content = uploaded.read().decode("utf-8", errors="replace")
+        return parse_ofx(content)
+    return pd.DataFrame()
+
+
+def run_conciliacao(df_ext: pd.DataFrame, df_sis: pd.DataFrame,
+                    col_val_ext: str, col_val_sis: str,
+                    col_desc_ext: str, col_desc_sis: str,
+                    col_data_ext: str, col_data_sis: str) -> pd.DataFrame:
+    ext = df_ext[[col_data_ext, col_desc_ext, col_val_ext]].copy()
+    sis = df_sis[[col_data_sis, col_desc_sis, col_val_sis]].copy()
+    ext.columns = ["Data", "Descrição", "Valor_Extrato"]
+    sis.columns = ["Data", "Descrição", "Valor_Sistema"]
+    ext["Valor_Extrato"] = pd.to_numeric(ext["Valor_Extrato"], errors="coerce")
+    sis["Valor_Sistema"]  = pd.to_numeric(sis["Valor_Sistema"],  errors="coerce")
+    ext["_key"] = ext["Valor_Extrato"].round(2).astype(str)
+    sis["_key"] = sis["Valor_Sistema"].round(2).astype(str)
+
+    merged = pd.merge(
+        ext, sis, on="_key", how="outer", suffixes=("_ext", "_sis")
+    ).drop(columns=["_key"])
+
+    def status(row):
+        ext_val = row.get("Valor_Extrato")
+        sis_val = row.get("Valor_Sistema")
+        has_ext = not (pd.isna(ext_val) if isinstance(ext_val, float) else False)
+        has_sis = not (pd.isna(sis_val) if isinstance(sis_val, float) else False)
+        if has_ext and has_sis:
+            if abs(float(ext_val) - float(sis_val)) < 0.01:
+                return "✅ Conciliado"
+            return "❌ Divergência"
+        if has_ext:
+            return "⚠️ Só no Extrato"
+        return "ℹ️ Só no Sistema"
+
+    merged["Status"] = merged.apply(status, axis=1)
+    merged["Diferença"] = (
+        pd.to_numeric(merged.get("Valor_Extrato"), errors="coerce") -
+        pd.to_numeric(merged.get("Valor_Sistema"), errors="coerce")
+    )
+    return merged
+
+
+def to_excel_bytes(df: pd.DataFrame) -> bytes:
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as w:
+        df.to_excel(w, index=False, sheet_name="Auditoria")
+    return buf.getvalue()
+
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div class="crs-logo">C<span>R</span>S</div>
+    <div class="crs-sub">Finance · BPO</div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("**Menu**")
+    st.markdown("<hr style='margin:0.4rem 0 0.6rem;'>", unsafe_allow_html=True)
+
+    nav = {
+        "🏛️  Marca & Apresentação": "marca",
+        "🔎  Auditoria Bancária":    "auditoria",
+        "⚖️  Conciliação":          "conciliacao",
+        "📊  Conversor OFX → Excel": "conversor",
+        "💼  Serviços & Contato":    "servicos",
+    }
+    for label, key in nav.items():
+        if st.button(label, key=f"nav_{key}", use_container_width=True):
+            st.session_state.page = key
+            st.rerun()
+
+    st.markdown("<hr style='margin:1rem 0 0.6rem;'>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style='font-size:0.75rem;color:#556688;line-height:1.7;'>
+        <span style='color:#C9A84C;font-weight:600;'>Caio Rodrigues Silva</span><br>
+        Especialista BPO Financeiro<br>
+        Parnaíba · PI · Brasil
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ── Páginas ───────────────────────────────────────────────────────────────────
+page = st.session_state.page
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 1. MARCA & APRESENTAÇÃO
+# ════════════════════════════════════════════════════════════════════════════
+if page == "marca":
+    st.markdown("""
+    <div class="hero-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;">
+            <div>
+                <div style="font-size:0.65rem;letter-spacing:.3em;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">
+                    Identidade Profissional
+                </div>
+                <div class="hero-brand">C<span>R</span>S<br>Finance</div>
+                <div class="hero-tagline">BPO · Gestão Financeira</div>
+                <div class="hero-slogan">"Precisão que move o seu negócio."</div>
+            </div>
+            <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:10px;padding:1rem 1.5rem;min-width:180px;">
+                <div style="font-size:0.65rem;letter-spacing:.2em;color:#8899BB;text-transform:uppercase;margin-bottom:8px;">Especialidades</div>
+                <div style="font-size:0.82rem;color:#C9A84C;line-height:2;">
+                    ◆ Auditoria de Extrato<br>
+                    ◆ Contas a Pagar/Receber<br>
+                    ◆ Conciliação Bancária<br>
+                    ◆ Relatórios Gerenciais
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:1.5rem;padding-top:1rem;border-top:0.5px solid rgba(201,168,76,0.2);">
+            <div class="hero-name">Caio Rodrigues Silva</div>
+            <div class="hero-role">Especialista BPO Financeiro</div>
+            <div class="hero-city">Parnaíba · Piauí · Brasil</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.15em;color:#C9A84C;text-transform:uppercase;margin-bottom:1rem;">Como funciona a auditoria</div>', unsafe_allow_html=True)
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+    steps = [
+        ("1", "Extrato\nBancário"),
+        ("2", "Importação\nOFX/Excel"),
+        ("3", "Cruzamento\ncom Sistema"),
+        ("4", "Identifica\nDivergências"),
+        ("5", "Relatório\nAuditado"),
+    ]
+    for col, (num, label) in zip([col1, col2, col3, col4, col5], steps):
+        col.markdown(f"""
+        <div style="text-align:center;">
+            <div style="width:44px;height:44px;border-radius:50%;background:#1B2A4A;border:2px solid #C9A84C;
+                        color:#C9A84C;font-size:1rem;font-weight:700;display:flex;align-items:center;
+                        justify-content:center;margin:0 auto 8px;">{num}</div>
+            <div style="font-size:0.75rem;color:#8899BB;line-height:1.4;">{label}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="section-card">
+        <div class="section-card-title">Proposta de valor</div>
+        <div style="font-size:0.88rem;color:#94a3b8;line-height:1.7;">
+            A <strong style="color:#C9A84C;">CRS Finance</strong> garante que cada lançamento do extrato bancário
+            esteja registrado corretamente no sistema de gestão — identificando inconsistências,
+            duplicidades e lançamentos não conciliados antes que se tornem problemas contábeis ou fiscais.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 2. AUDITORIA BANCÁRIA
+# ════════════════════════════════════════════════════════════════════════════
+elif page == "auditoria":
+    st.markdown('<div class="page-title">Auditoria Bancária</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Cruze o extrato bancário com o sistema de gestão e identifique divergências</div>', unsafe_allow_html=True)
+
+    col_ext, col_sis = st.columns(2)
+
+    with col_ext:
+        st.markdown("""<div class="section-card">
+        <div class="section-card-title">📄 Extrato Bancário</div>""", unsafe_allow_html=True)
+        st.markdown("*Formatos aceitos: OFX, CSV, Excel*")
+        f_ext = st.file_uploader("Extrato", type=["ofx","ofc","csv","xlsx","xls","txt"], key="aud_ext", label_visibility="collapsed")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_sis:
+        st.markdown("""<div class="section-card">
+        <div class="section-card-title">💻 Sistema de Gestão</div>""", unsafe_allow_html=True)
+        st.markdown("*Formatos aceitos: CSV, Excel*")
+        f_sis = st.file_uploader("Sistema", type=["csv","xlsx","xls"], key="aud_sis", label_visibility="collapsed")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Mapeamento de colunas
+    if f_ext and f_sis:
+        df_ext = load_file(f_ext)
+        df_sis = load_file(f_sis)
+
+        if not df_ext.empty and not df_sis.empty:
+            st.markdown("---")
+            st.markdown("**Mapeamento de colunas**")
+            c1, c2, c3 = st.columns(3)
+            cols_ext = df_ext.columns.tolist()
+            cols_sis = df_sis.columns.tolist()
+
+            with c1:
+                ce_data  = st.selectbox("Data (extrato)",   cols_ext, key="ce_data")
+                cs_data  = st.selectbox("Data (sistema)",   cols_sis, key="cs_data")
+            with c2:
+                ce_desc  = st.selectbox("Descrição (extrato)", cols_ext, index=min(1, len(cols_ext)-1), key="ce_desc")
+                cs_desc  = st.selectbox("Descrição (sistema)", cols_sis, index=min(1, len(cols_sis)-1), key="cs_desc")
+            with c3:
+                ce_val   = st.selectbox("Valor (extrato)",  cols_ext, index=min(2, len(cols_ext)-1), key="ce_val")
+                cs_val   = st.selectbox("Valor (sistema)",  cols_sis, index=min(2, len(cols_sis)-1), key="cs_val")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            col_btn, _ = st.columns([1, 3])
+            with col_btn:
+                executar = st.button("🔎  Executar Auditoria", key="btn_audit", use_container_width=True)
+
+            if executar:
+                with st.spinner("Auditando…"):
+                    result = run_conciliacao(df_ext, df_sis, ce_val, cs_val, ce_desc, cs_desc, ce_data, cs_data)
+
+                total   = len(result)
+                ok      = (result["Status"] == "✅ Conciliado").sum()
+                div     = (result["Status"] == "❌ Divergência").sum()
+                only_e  = (result["Status"] == "⚠️ Só no Extrato").sum()
+                only_s  = (result["Status"] == "ℹ️ Só no Sistema").sum()
+
+                # Métricas
+                m1, m2, m3, m4, m5 = st.columns(5)
+                for col, lbl, val, cls in [
+                    (m1, "Total",          str(total),  ""),
+                    (m2, "Conciliados",    str(ok),     "green"),
+                    (m3, "Divergências",   str(div),    "red"),
+                    (m4, "Só no Extrato",  str(only_e), "amber"),
+                    (m5, "Só no Sistema",  str(only_s), "amber"),
+                ]:
+                    col.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">{lbl}</div>
+                        <div class="metric-value {cls}">{val}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+
+                # Filtro
+                filtro = st.selectbox(
+                    "Filtrar por status",
+                    ["Todos", "✅ Conciliado", "❌ Divergência", "⚠️ Só no Extrato", "ℹ️ Só no Sistema"],
+                    key="audit_filter"
+                )
+                df_show = result if filtro == "Todos" else result[result["Status"] == filtro]
+
+                # Formatar valores
+                for c in ["Valor_Extrato", "Valor_Sistema", "Diferença"]:
+                    if c in df_show.columns:
+                        df_show = df_show.copy()
+                        df_show[c] = df_show[c].apply(
+                            lambda v: fmt_brl(v) if not (isinstance(v, float) and np.isnan(v)) else "—"
+                        )
+
+                st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+                # Download
+                st.download_button(
+                    "⬇️  Exportar relatório Excel",
+                    data=to_excel_bytes(result),
+                    file_name=f"auditoria_crs_{datetime.today().strftime('%d%m%Y')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+    else:
+        st.markdown("""
+        <div class="section-card" style="text-align:center;padding:2.5rem;">
+            <div style="font-size:2.5rem;margin-bottom:.75rem;">🔎</div>
+            <div style="color:#556688;font-size:0.88rem;">
+                Faça upload dos dois arquivos acima para iniciar a auditoria
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Demonstração com dados sintéticos
+        with st.expander("📋  Ver exemplo com dados de demonstração"):
+            demo_ext = pd.DataFrame({
+                "Data":       ["01/04/2025","03/04/2025","05/04/2025","07/04/2025","10/04/2025","12/04/2025","15/04/2025"],
+                "Descrição":  ["TEF Recebida - Cliente Alfa","Pagto Fornecedor","Tarifa Bancária","TEF - Cliente Beta","Pagto Aluguel","Recebimento NF 0042","Folha de Pagamento"],
+                "Valor":      [4800.00, -1250.00, -45.00, 2300.00, -1800.00, 3600.00, -5200.00],
+            })
+            demo_sis = pd.DataFrame({
+                "Data":       ["01/04/2025","03/04/2025","05/04/2025","07/04/2025","10/04/2025","12/04/2025","17/04/2025"],
+                "Descrição":  ["Recebimento Alfa","Fornecedor","Tarifa","Recebimento Beta","Aluguel","NF 0042","Folha Abril"],
+                "Valor":      [4800.00, -1250.00, -38.00, 2300.00, -1800.00, 3600.00, -5200.00],
+            })
+            demo_result = run_conciliacao(demo_ext, demo_sis, "Valor", "Valor", "Descrição", "Descrição", "Data", "Data")
+            st.dataframe(demo_result, use_container_width=True, hide_index=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 3. CONCILIAÇÃO LADO A LADO
+# ════════════════════════════════════════════════════════════════════════════
+elif page == "conciliacao":
+    st.markdown('<div class="page-title">Conciliação Bancária</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Visão lado a lado — extrato bancário vs sistema de gestão financeiro</div>', unsafe_allow_html=True)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        f_c_ext = st.file_uploader("Extrato bancário", type=["ofx","ofc","csv","xlsx","xls","txt"], key="conc_ext")
+    with col2:
+        f_c_sis = st.file_uploader("Sistema de gestão", type=["csv","xlsx","xls"], key="conc_sis")
+
+    if f_c_ext and f_c_sis:
+        df_ce = load_file(f_c_ext)
+        df_cs = load_file(f_c_sis)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            col_e_data = st.selectbox("Data", df_ce.columns.tolist(), key="cce_d")
+            col_e_desc = st.selectbox("Descrição", df_ce.columns.tolist(), index=min(1,len(df_ce.columns)-1), key="cce_desc")
+            col_e_val  = st.selectbox("Valor", df_ce.columns.tolist(), index=min(2,len(df_ce.columns)-1), key="cce_val")
+        with c2:
+            col_s_data = st.selectbox("Data ", df_cs.columns.tolist(), key="ccs_d")
+            col_s_desc = st.selectbox("Descrição ", df_cs.columns.tolist(), index=min(1,len(df_cs.columns)-1), key="ccs_desc")
+            col_s_val  = st.selectbox("Valor ", df_cs.columns.tolist(), index=min(2,len(df_cs.columns)-1), key="ccs_val")
+
+        st.markdown("---")
+        col_l, col_r = st.columns(2)
+
+        with col_l:
+            st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;">Extrato Bancário</div>', unsafe_allow_html=True)
+            df_left = df_ce[[col_e_data, col_e_desc, col_e_val]].copy()
+            df_left.columns = ["Data", "Descrição", "Valor"]
+            df_left["Valor"] = pd.to_numeric(df_left["Valor"], errors="coerce")
+            st.dataframe(df_left, use_container_width=True, hide_index=True)
+            total_ext = df_left["Valor"].sum()
+            st.markdown(f'<div style="text-align:right;font-size:0.88rem;color:#C9A84C;font-weight:600;margin-top:4px;">Total: {fmt_brl(total_ext)}</div>', unsafe_allow_html=True)
+
+        with col_r:
+            st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;">Sistema de Gestão</div>', unsafe_allow_html=True)
+            df_right = df_cs[[col_s_data, col_s_desc, col_s_val]].copy()
+            df_right.columns = ["Data", "Descrição", "Valor"]
+            df_right["Valor"] = pd.to_numeric(df_right["Valor"], errors="coerce")
+            st.dataframe(df_right, use_container_width=True, hide_index=True)
+            total_sis = df_right["Valor"].sum()
+            st.markdown(f'<div style="text-align:right;font-size:0.88rem;color:#C9A84C;font-weight:600;margin-top:4px;">Total: {fmt_brl(total_sis)}</div>', unsafe_allow_html=True)
+
+        diff = total_ext - total_sis
+        color = "#4ade80" if abs(diff) < 0.01 else "#f87171"
+        st.markdown(f"""
+        <div style="background:#1B2A4A;border-radius:10px;padding:1rem 1.5rem;margin-top:1rem;
+                    border-left:3px solid {color};display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.85rem;color:#8899BB;">Diferença total (extrato − sistema)</span>
+            <span style="font-size:1.2rem;font-weight:700;color:{color};">{fmt_brl(diff)}</span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.info("Faça upload dos dois arquivos para ver a conciliação lado a lado.")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 4. CONVERSOR OFX → EXCEL
+# ════════════════════════════════════════════════════════════════════════════
+elif page == "conversor":
+    st.markdown('<div class="page-title">Conversor OFX → Excel</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Converta extratos bancários OFX em planilha Excel estruturada</div>', unsafe_allow_html=True)
+
+    f_ofx = st.file_uploader("Selecione o arquivo OFX / OFC", type=["ofx","ofc","txt"], key="conv_ofx")
+
+    if f_ofx:
+        content = f_ofx.read().decode("utf-8", errors="replace")
+        df_ofx = parse_ofx(content)
+
+        if df_ofx.empty:
+            st.warning("Nenhuma transação encontrada. Verifique se o arquivo é um OFX/SGML válido.")
+        else:
+            total_txn     = len(df_ofx)
+            total_cred    = df_ofx[df_ofx["Valor"] > 0]["Valor"].sum()
+            total_deb     = df_ofx[df_ofx["Valor"] < 0]["Valor"].sum()
+            saldo         = total_cred + total_deb
+
+            m1, m2, m3, m4 = st.columns(4)
+            for col, lbl, val, cls in [
+                (m1, "Transações",    str(total_txn),       ""),
+                (m2, "Total créditos", fmt_brl(total_cred), "green"),
+                (m3, "Total débitos",  fmt_brl(abs(total_deb)), "red"),
+                (m4, "Saldo",          fmt_brl(saldo),      "green" if saldo >= 0 else "red"),
+            ]:
+                col.markdown(f"""
+                <div class="metric-card">
+                    <div class="metric-label">{lbl}</div>
+                    <div class="metric-value {cls}" style="font-size:1.1rem;">{val}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                tipo_opts = ["Todos"] + sorted(df_ofx["Valor"].apply(lambda v: "Crédito" if v > 0 else "Débito").unique().tolist())
+                tipo_sel = st.selectbox("Tipo", tipo_opts)
+            with c2:
+                busca = st.text_input("Buscar descrição", placeholder="ex: pagamento, tarifa…")
+
+            df_show = df_ofx.copy()
+            if tipo_sel == "Crédito":
+                df_show = df_show[df_show["Valor"] > 0]
+            elif tipo_sel == "Débito":
+                df_show = df_show[df_show["Valor"] < 0]
+            if busca:
+                df_show = df_show[df_show["Descrição"].str.contains(busca, case=False, na=False)]
+
+            st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+            st.download_button(
+                "⬇️  Baixar como Excel",
+                data=to_excel_bytes(df_show),
+                file_name=f"extrato_{f_ofx.name.split('.')[0]}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+    else:
+        st.markdown("""
+        <div class="section-card" style="text-align:center;padding:2.5rem;">
+            <div style="font-size:2rem;margin-bottom:.75rem;">📄</div>
+            <div style="color:#556688;font-size:0.88rem;">Arraste um arquivo .ofx aqui</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 5. SERVIÇOS & CONTATO
+# ════════════════════════════════════════════════════════════════════════════
+elif page == "servicos":
+    st.markdown('<div class="page-title">Serviços & Contato</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">CRS Finance · BPO Financeiro · Parnaíba, Piauí</div>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    servicos = [
+        ("Auditoria de Extrato", "Cruzamento sistemático do extrato bancário com o sistema de gestão, identificando divergências, duplicidades e lançamentos não conciliados.", "A partir de R$ 490/mês"),
+        ("Contas a Pagar/Receber", "Gestão completa do fluxo de pagamentos e recebimentos com conciliação diária e relatórios de inadimplência.", "A partir de R$ 690/mês"),
+        ("Conciliação Bancária", "Conferência entre saldos bancários e registros do sistema de gestão com relatório de diferenças.", "A partir de R$ 390/mês"),
+        ("Relatórios Gerenciais", "DRE simplificado, fluxo de caixa e painel financeiro para tomada de decisão do gestor.", "A partir de R$ 290/mês"),
+    ]
+    for i, (titulo, desc, preco) in enumerate(servicos):
+        col = c1 if i % 2 == 0 else c2
+        col.markdown(f"""
+        <div class="svc-card" style="margin-bottom:12px;">
+            <div class="svc-title">{titulo}</div>
+            <div class="svc-desc">{desc}</div>
+            <div class="svc-price">{preco}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="section-card">
+        <div class="section-card-title">Entre em contato</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <div style="background:#1B2A4A;border-radius:8px;padding:10px 16px;font-size:0.82rem;">
+                <div style="color:#C9A84C;font-weight:600;margin-bottom:2px;">WhatsApp</div>
+                <div style="color:#94a3b8;">(86) 9 xxxx-xxxx</div>
+            </div>
+            <div style="background:#1B2A4A;border-radius:8px;padding:10px 16px;font-size:0.82rem;">
+                <div style="color:#C9A84C;font-weight:600;margin-bottom:2px;">Instagram</div>
+                <div style="color:#94a3b8;">@crsfinance</div>
+            </div>
+            <div style="background:#1B2A4A;border-radius:8px;padding:10px 16px;font-size:0.82rem;">
+                <div style="color:#C9A84C;font-weight:600;margin-bottom:2px;">LinkedIn</div>
+                <div style="color:#94a3b8;">Caio Rodrigues Silva</div>
+            </div>
+            <div style="background:#1B2A4A;border-radius:8px;padding:10px 16px;font-size:0.82rem;">
+                <div style="color:#C9A84C;font-weight:600;margin-bottom:2px;">Localização</div>
+                <div style="color:#94a3b8;">Parnaíba · PI · Brasil</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background:#1B2A4A;border-radius:12px;padding:1.5rem 2rem;border-top:2px solid #C9A84C;text-align:center;margin-top:1rem;">
+        <div style="font-size:0.65rem;letter-spacing:.25em;color:#C9A84C;text-transform:uppercase;margin-bottom:8px;">Posicionamento CRS Finance</div>
+        <div style="font-family:'Playfair Display',serif;font-size:1.1rem;font-style:italic;color:#fff;line-height:1.7;">
+            "Precisão que move o seu negócio."
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
