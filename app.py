@@ -1132,76 +1132,210 @@ elif page == "classificador":
 
     # ════════════════════════════
     with tab_plano:
-        st.markdown('<div class="page-sub">Visualize, atualize ou adicione novas categorias e subcategorias ao plano de contas.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="page-sub">Gerencie categorias (mãe) e subcategorias (filhas) do plano de contas.</div>', unsafe_allow_html=True)
 
-        st.markdown("**Carregar plano de contas atualizado**")
-        st.caption("Envie o arquivo exportado do Meu Dinheiro (Excel ou CSV). Deixe vazio para usar o padrão embutido.")
+        # ── Helpers para carregar/salvar plano no session_state ───────────────
+        def get_plano():
+            if "_plano_carregado" in st.session_state:
+                return json.loads(st.session_state["_plano_carregado"])
+            return PLANO_PADRAO.copy()
+
+        def set_plano(p):
+            st.session_state["_plano_carregado"] = json.dumps(p, ensure_ascii=False)
+
+        # ── Upload de arquivo ─────────────────────────────────────────────────
+        st.markdown("**Carregar plano do Meu Dinheiro**")
+        st.caption("Envie o arquivo exportado (Excel ou CSV). Deixe vazio para usar o padrão embutido.")
         f_plano = st.file_uploader(" ", type=["xlsx","xls","csv"], key="plano_file", label_visibility="collapsed")
-
-        plano_atual = carregar_plano(f_plano)
         if f_plano:
-            st.success(f"Plano carregado: {len(plano_atual)} categorias, {sum(len(v) for v in plano_atual.values())} subcategorias.")
-            st.session_state["_plano_carregado"] = json.dumps(plano_atual, ensure_ascii=False)
-        elif "_plano_carregado" in st.session_state:
-            plano_atual = json.loads(st.session_state["_plano_carregado"])
+            plano_importado = carregar_plano(f_plano)
+            set_plano(plano_importado)
+            st.success(f"Plano carregado: {len(plano_importado)} categorias, {sum(len(v) for v in plano_importado.values())} subcategorias.")
+            st.rerun()
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin-bottom:.75rem;">{len(plano_atual)} categorias · {sum(len(v) for v in plano_atual.values())} subcategorias</div>', unsafe_allow_html=True)
+        plano = get_plano()
+        cats_list = list(plano.keys())
+        n_subs_total = sum(len(v) for v in plano.values())
+        st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin:.5rem 0 1rem;">{len(cats_list)} categorias · {n_subs_total} subcategorias</div>', unsafe_allow_html=True)
 
-        for cat, subs in plano_atual.items():
-            with st.expander(f"**{cat}** — {len(subs)} subcategorias"):
+        st.markdown("---")
+
+        # ════════════════════════════════════════════
+        # SEÇÃO 1 — ADICIONAR
+        # ════════════════════════════════════════════
+        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Adicionar</div>', unsafe_allow_html=True)
+
+        add1, add2 = st.columns(2)
+        with add1:
+            st.markdown("**Nova categoria (mãe)**")
+            nova_cat_nome = st.text_input(" ", placeholder="Ex: 7.1 - NOVA CATEGORIA", key="nova_cat_inp", label_visibility="collapsed")
+            if st.button("➕  Adicionar categoria", key="btn_add_cat", use_container_width=True):
+                if nova_cat_nome.strip():
+                    p = get_plano()
+                    if nova_cat_nome.strip() not in p:
+                        p[nova_cat_nome.strip()] = []
+                        set_plano(p)
+                        st.success(f"Categoria '{nova_cat_nome.strip()}' adicionada!")
+                        st.rerun()
+                    else:
+                        st.warning("Essa categoria já existe.")
+                else:
+                    st.warning("Digite o nome da categoria.")
+
+        with add2:
+            st.markdown("**Nova subcategoria (filha)**")
+            cat_mae = st.selectbox("Vincular à categoria", ["— selecione —"] + cats_list, key="sub_cat_mae")
+            nova_sub_nome = st.text_input(" ", placeholder="Ex: 7.101 - Descrição da subcategoria", key="nova_sub_inp", label_visibility="collapsed")
+            if st.button("➕  Adicionar subcategoria", key="btn_add_sub", use_container_width=True):
+                if cat_mae == "— selecione —":
+                    st.warning("Selecione a categoria mãe.")
+                elif not nova_sub_nome.strip():
+                    st.warning("Digite o nome da subcategoria.")
+                else:
+                    p = get_plano()
+                    if nova_sub_nome.strip() not in p[cat_mae]:
+                        p[cat_mae].append(nova_sub_nome.strip())
+                        set_plano(p)
+                        st.success(f"Subcategoria adicionada em '{cat_mae}'!")
+                        st.rerun()
+                    else:
+                        st.warning("Essa subcategoria já existe nesta categoria.")
+
+        st.markdown("---")
+
+        # ════════════════════════════════════════════
+        # SEÇÃO 2 — EDITAR
+        # ════════════════════════════════════════════
+        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Editar</div>', unsafe_allow_html=True)
+
+        ed1, ed2 = st.columns(2)
+        with ed1:
+            st.markdown("**Renomear categoria (mãe)**")
+            cat_renomear = st.selectbox("Categoria a renomear", ["— selecione —"] + cats_list, key="cat_renomear_sel")
+            novo_nome_cat = st.text_input(" ", placeholder="Novo nome", key="novo_nome_cat_inp", label_visibility="collapsed")
+            if st.button("✏️  Renomear categoria", key="btn_rename_cat", use_container_width=True):
+                if cat_renomear == "— selecione —":
+                    st.warning("Selecione a categoria.")
+                elif not novo_nome_cat.strip():
+                    st.warning("Digite o novo nome.")
+                elif novo_nome_cat.strip() == cat_renomear:
+                    st.warning("O nome é igual ao atual.")
+                else:
+                    p = get_plano()
+                    # Reconstrói dict preservando a ordem
+                    p_novo = {}
+                    for k, v in p.items():
+                        if k == cat_renomear:
+                            p_novo[novo_nome_cat.strip()] = v
+                        else:
+                            p_novo[k] = v
+                    set_plano(p_novo)
+                    st.success(f"'{cat_renomear}' → '{novo_nome_cat.strip()}'")
+                    st.rerun()
+
+        with ed2:
+            st.markdown("**Renomear subcategoria (filha)**")
+            cat_mae_ed = st.selectbox("Categoria mãe", ["— selecione —"] + cats_list, key="sub_ed_mae")
+            if cat_mae_ed != "— selecione —":
+                subs_da_cat = plano.get(cat_mae_ed, [])
+                sub_renomear = st.selectbox("Subcategoria a renomear", ["— selecione —"] + subs_da_cat, key="sub_renomear_sel")
+                novo_nome_sub = st.text_input(" ", placeholder="Novo nome", key="novo_nome_sub_inp", label_visibility="collapsed")
+                if st.button("✏️  Renomear subcategoria", key="btn_rename_sub", use_container_width=True):
+                    if sub_renomear == "— selecione —":
+                        st.warning("Selecione a subcategoria.")
+                    elif not novo_nome_sub.strip():
+                        st.warning("Digite o novo nome.")
+                    else:
+                        p = get_plano()
+                        idx = p[cat_mae_ed].index(sub_renomear)
+                        p[cat_mae_ed][idx] = novo_nome_sub.strip()
+                        set_plano(p)
+                        st.success(f"'{sub_renomear}' → '{novo_nome_sub.strip()}'")
+                        st.rerun()
+            else:
+                st.caption("Selecione a categoria mãe primeiro.")
+
+        st.markdown("---")
+
+        # ════════════════════════════════════════════
+        # SEÇÃO 3 — EXCLUIR
+        # ════════════════════════════════════════════
+        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Excluir</div>', unsafe_allow_html=True)
+
+        ex1, ex2 = st.columns(2)
+        with ex1:
+            st.markdown("**Excluir categoria (mãe)**")
+            st.caption("⚠️ Remove a categoria e todas as subcategorias vinculadas.")
+            cat_excluir = st.selectbox("Categoria a excluir", ["— selecione —"] + cats_list, key="cat_excluir_sel")
+            if cat_excluir != "— selecione —":
+                n_filhas = len(plano.get(cat_excluir, []))
+                if n_filhas > 0:
+                    st.markdown(f'<div style="font-size:0.8rem;color:#f87171;margin-bottom:6px;">Esta categoria tem {n_filhas} subcategoria(s) que serão removidas junto.</div>', unsafe_allow_html=True)
+                confirmar_cat = st.checkbox(f"Confirmo a exclusão de '{cat_excluir}'", key="confirm_del_cat")
+                if st.button("🗑️  Excluir categoria", key="btn_del_cat", use_container_width=True):
+                    if confirmar_cat:
+                        p = get_plano()
+                        del p[cat_excluir]
+                        set_plano(p)
+                        st.success(f"Categoria '{cat_excluir}' excluída!")
+                        st.rerun()
+                    else:
+                        st.warning("Marque a caixa de confirmação para excluir.")
+
+        with ex2:
+            st.markdown("**Excluir subcategoria (filha)**")
+            st.caption("Remove apenas a subcategoria. A categoria mãe permanece intacta.")
+            cat_mae_ex = st.selectbox("Categoria mãe", ["— selecione —"] + cats_list, key="sub_ex_mae")
+            if cat_mae_ex != "— selecione —":
+                subs_ex = plano.get(cat_mae_ex, [])
+                if subs_ex:
+                    sub_excluir = st.selectbox("Subcategoria a excluir", ["— selecione —"] + subs_ex, key="sub_excluir_sel")
+                    if sub_excluir != "— selecione —":
+                        confirmar_sub = st.checkbox(f"Confirmo a exclusão de '{sub_excluir}'", key="confirm_del_sub")
+                        if st.button("🗑️  Excluir subcategoria", key="btn_del_sub", use_container_width=True):
+                            if confirmar_sub:
+                                p = get_plano()
+                                p[cat_mae_ex].remove(sub_excluir)
+                                set_plano(p)
+                                st.success(f"Subcategoria '{sub_excluir}' excluída. Categoria '{cat_mae_ex}' mantida.")
+                                st.rerun()
+                            else:
+                                st.warning("Marque a caixa de confirmação para excluir.")
+                else:
+                    st.caption("Esta categoria não tem subcategorias.")
+            else:
+                st.caption("Selecione a categoria mãe primeiro.")
+
+        st.markdown("---")
+
+        # ════════════════════════════════════════════
+        # SEÇÃO 4 — VISUALIZAR E EXPORTAR
+        # ════════════════════════════════════════════
+        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Visualizar plano atual</div>', unsafe_allow_html=True)
+
+        for cat, subs in plano.items():
+            with st.expander(f"**{cat}** — {len(subs)} subcategoria(s)"):
                 if subs:
                     for s in subs:
-                        st.markdown(f"&nbsp;&nbsp;&nbsp;· {s}")
+                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;↳ {s}")
                 else:
-                    st.caption("Sem subcategorias")
+                    st.caption("Sem subcategorias cadastradas.")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("**Adicionar nova categoria ou subcategoria**")
-        na1, na2, na3 = st.columns(3)
-        with na1:
-            nova_cat = st.selectbox("Categoria", ["— Nova categoria —"] + list(plano_atual.keys()), key="nova_cat_sel")
-        with na2:
-            if nova_cat == "— Nova categoria —":
-                nova_cat_nome = st.text_input("Nome da nova categoria", placeholder="Ex: 7.1 - NOVA CATEGORIA", key="nova_cat_nome")
+        rows_dl = []
+        for cat, subs in plano.items():
+            if subs:
+                for s in subs:
+                    rows_dl.append({"Categoria": cat, "Subcategoria": s})
             else:
-                nova_cat_nome = nova_cat
-        with na3:
-            nova_sub = st.text_input("Nova subcategoria", placeholder="Ex: 7.101 - Descrição", key="nova_sub_nome")
+                rows_dl.append({"Categoria": cat, "Subcategoria": ""})
+        st.download_button(
+            "⬇️  Baixar plano atualizado (Excel)",
+            data=to_excel_bytes(pd.DataFrame(rows_dl)),
+            file_name=f"plano_contas_crs_{datetime.today().strftime('%d%m%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
-        if st.button("➕  Adicionar ao plano", key="btn_add_plano"):
-            if nova_cat_nome and nova_cat_nome != "— Nova categoria —":
-                if "_plano_carregado" in st.session_state:
-                    plano_edit = json.loads(st.session_state["_plano_carregado"])
-                else:
-                    plano_edit = PLANO_PADRAO.copy()
-                if nova_cat_nome not in plano_edit:
-                    plano_edit[nova_cat_nome] = []
-                if nova_sub and nova_sub not in plano_edit[nova_cat_nome]:
-                    plano_edit[nova_cat_nome].append(nova_sub)
-                st.session_state["_plano_carregado"] = json.dumps(plano_edit, ensure_ascii=False)
-                st.success(f"Adicionado: **{nova_cat_nome}** → {nova_sub if nova_sub else '(sem subcategoria)'}")
-                st.rerun()
-            else:
-                st.warning("Informe o nome da categoria.")
-
-        # Download plano atualizado
-        if "_plano_carregado" in st.session_state:
-            plano_dl = json.loads(st.session_state["_plano_carregado"])
-            rows_dl = []
-            for cat, subs in plano_dl.items():
-                if subs:
-                    for s in subs:
-                        rows_dl.append({"Categoria": cat, "Subcategoria": s})
-                else:
-                    rows_dl.append({"Categoria": cat, "Subcategoria": ""})
-            df_plano_dl = pd.DataFrame(rows_dl)
-            st.download_button(
-                "⬇️  Baixar plano atualizado (Excel)",
-                data=to_excel_bytes(df_plano_dl),
-                file_name=f"plano_contas_crs_{datetime.today().strftime('%d%m%Y')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
 
     # ════════════════════════════
     with tab_class:
