@@ -908,20 +908,46 @@ elif page == "conciliacao":
             df_ext_raw = df_ext_raw[~mask].copy()
             st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;">✓ {n_antes-len(df_ext_raw)} excluídos · {len(df_ext_raw)} restantes</div>', unsafe_allow_html=True)
 
-        ft1,ft2 = st.columns(2)
+        st.markdown("""
+        <div style="background:#162236;border-left:3px solid #C9A84C;border-radius:0 8px 8px 0;
+                    padding:8px 14px;font-size:0.8rem;color:#8899BB;margin-bottom:10px;">
+            ⚠️ <strong style="color:#C9A84C;">Atenção:</strong> remova <u>somente</u> transferências internas
+            entre contas do próprio banco (ex: CC ↔ Aplicação).
+            Transferências da Caixinha para o Itaú <strong>devem ser mantidas</strong> — elas fazem parte do saldo real.
+        </div>""", unsafe_allow_html=True)
+
+        ft1, ft2, ft3 = st.columns(3)
         with ft1:
+            # Coluna Tipo
             cols_sis_op = ["— Nenhum —"] + cols_sis
-            col_tipo_sis = st.selectbox("Coluna tipo (sistema)", cols_sis_op, key="ccs_tipo")
+            col_tipo_sis = st.selectbox("Coluna Tipo (sistema)", cols_sis_op, key="ccs_tipo")
         with ft2:
-            tipos_excluir = []
-            if col_tipo_sis != "— Nenhum —":
-                tipos_unicos = df_sis_raw[col_tipo_sis].dropna().unique().tolist()
-                tipos_excluir = st.multiselect("Excluir tipos", tipos_unicos,
-                    default=[t for t in tipos_unicos if "transfer" in str(t).lower()], key="ccs_excluir")
-        if col_tipo_sis != "— Nenhum —" and tipos_excluir:
-            n = len(df_sis_raw)
-            df_sis_raw = df_sis_raw[~df_sis_raw[col_tipo_sis].isin(tipos_excluir)].copy()
-            st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;">✓ {n-len(df_sis_raw)} excluídos do sistema · {len(df_sis_raw)} restantes</div>', unsafe_allow_html=True)
+            # Coluna Conta transferência — para filtrar por destino
+            col_conta_transf_op = ["— Nenhum —"] + cols_sis
+            col_conta_transf = st.selectbox("Coluna Conta destino", col_conta_transf_op,
+                index=next((i+1 for i,c in enumerate(cols_sis) if "conta transfer" in c.lower() or "destino" in c.lower()), 0),
+                key="ccs_conta_transf",
+                help="Coluna que indica para qual conta foi a transferência. Ex: 'Conta transferência' no Meu Dinheiro.")
+        with ft3:
+            palavras_conta_aplic = st.multiselect(
+                "Filtrar por conta destino (contém)",
+                options=["Aplicação","Aplic","Auto Mais","Poupança","CDB","LCI","LCA","Reserva"],
+                default=["Aplicação","Aplic","Auto Mais"],
+                key="ccs_conta_palavras",
+                help="Só transferências cujo destino contenha essas palavras serão removidas.")
+
+        # Aplica filtro CIRÚRGICO: só remove quando é Transferência E conta destino contém palavras de aplicação
+        n_antes = len(df_sis_raw)
+        if col_tipo_sis != "— Nenhum —" and col_conta_transf != "— Nenhum —" and palavras_conta_aplic:
+            mask_tipo = df_sis_raw[col_tipo_sis].astype(str).str.lower() == "transferência"
+            mask_dest = df_sis_raw[col_conta_transf].astype(str).str.contains(
+                "|".join([re.escape(p) for p in palavras_conta_aplic]), case=False, na=False)
+            mask_remover = mask_tipo & mask_dest
+            df_sis_raw = df_sis_raw[~mask_remover].copy()
+            n_removidos = n_antes - len(df_sis_raw)
+            st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_removidos} transferências CC↔Aplicação removidas · {len(df_sis_raw)} lançamentos restantes</div>', unsafe_allow_html=True)
+        elif col_tipo_sis == "— Nenhum —":
+            st.markdown('<div style="font-size:0.8rem;color:#8899BB;margin-top:4px;">Nenhuma coluna de tipo selecionada — usando todos os lançamentos.</div>', unsafe_allow_html=True)
 
     # ── Tipo análise + período ────────────────────────────────────────────────
     st.markdown("---")
