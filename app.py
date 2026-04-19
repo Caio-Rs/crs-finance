@@ -399,6 +399,7 @@ with st.sidebar:
         "🔎  Auditoria de Lançamentos": "auditoria",
         "⚖️  Conciliação de Saldo":     "conciliacao",
         "📊  Conversor OFX → Excel":    "conversor",
+        "🤖  Classificador Caixinha":   "classificador",
         "💼  Serviços & Contato":       "servicos",
     }
     for label, key in nav.items():
@@ -972,6 +973,428 @@ elif page == "conversor":
         <div class="section-card" style="text-align:center;padding:2.5rem;">
             <div style="font-size:2rem;margin-bottom:.75rem;">📄</div>
             <div style="color:#556688;font-size:0.88rem;">Arraste um arquivo .ofx aqui</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 6. CLASSIFICADOR CAIXINHA
+# Lê planilha Excel da Caixinha, cruza contatos + plano de contas,
+# sugere Categoria e SubCategoria, exporta CSV e OFX para Meu Dinheiro
+# ════════════════════════════════════════════════════════════════════════════
+elif page == "classificador":
+    st.markdown('<div class="page-title">Classificador Caixinha</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="page-sub">Lê a planilha da Caixinha, classifica automaticamente pelo plano de contas
+    e exporta CSV ou OFX pronto para importar no Meu Dinheiro.</div>
+    """, unsafe_allow_html=True)
+
+    # ── Cadastro de contatos embutido (pode ser substituído por upload) ───────
+    CONTATOS_MEDICOS = [
+        "luciany","rossania","marilia","sarita","isadora","priscila","juliana",
+        "deodato","marcelo","marcello","airton","tarcizio","tarcízio","eulalio",
+        "raquel","nahara","paloma","sandra","carlos eduardo","isabela lima",
+        "ana camila","airton"
+    ]
+    CONTATOS_TERAPEUTAS = [
+        "andrezza","andressa","antonio clayton","marcia karina","jussara","dayrla",
+        "ceciane","wanderson","iasmim","katrine","norla","rosario","alessia",
+        "leticia","narllyanna","brenda","maria stheffany","sara micaela","vitorugo",
+        "rondinara","edilene","ana karolina"
+    ]
+    CONTATOS_PESSOAL = [
+        "cacilene","kacilene","iara","jessica pinto","simone","vanderlene",
+        "gleicyelle","gleycyelle","maria cacilene"
+    ]
+
+    # Regras fixas: (palavras_desc, palavras_contato, entrada_saida) → (cat, subcat)
+    REGRAS = [
+        # Receitas
+        (["cx do dia","honorários","repasse","honorarios"],
+         CONTATOS_MEDICOS, "E",
+         "1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS",
+         "1.601 - Valores a Repassar - Médicos"),
+        (["cx do dia","honorários","repasse","honorarios"],
+         CONTATOS_TERAPEUTAS, "E",
+         "1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS",
+         "1.602 - Valores a Repassar - Terapeutas"),
+        (["cx do dia","honorários","honorarios"],
+         [], "E",
+         "1.1 - RECEITAS OPERACIONAIS",
+         "1.101 - Honorários Clínicos - Medicos"),
+        # Repasses (saídas para médicos/terapeutas)
+        (["repasse","honorários","honorarios","cx do dia"],
+         CONTATOS_MEDICOS, "S",
+         "6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS",
+         "6.601 - Repasse de Valor - Médicos"),
+        (["repasse","honorários","honorarios","cx do dia","fusma"],
+         CONTATOS_TERAPEUTAS, "S",
+         "6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS",
+         "6.602 - Repasse de Valor - Terapeutas"),
+        # Pessoal
+        (["folha","salario","salário","pagamento"],
+         CONTATOS_PESSOAL + ["cacilene","kacilene"], "S",
+         "3.2 - DESPESAS COM PESSOAL",
+         "3.301 - Salarios (D)"),
+        (["gratificação","gratificacao","bonus","bônus"],
+         [], "S",
+         "3.2 - DESPESAS COM PESSOAL",
+         "3.310 - Gratificação (D)"),
+        (["uniforme"], [], "S",
+         "3.2 - DESPESAS COM PESSOAL", "3.306 - Uniforme (D)"),
+        # Administrativas
+        (["agua","água","galão","galoes","galões","mineral"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.301 - Água e Esgoto"),
+        (["energia","luz","eletr"], [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.307 - Energia Elétrica"),
+        (["internet","telefone","tim","claro","vivo","oi "],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.315 - Telefone e Internet"),
+        (["aluguel"], [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.303 - Aluguel"),
+        (["limpeza","faxina","varrendo"], [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.331 - Serviço de Limpeza "),
+        (["manutenção","manut","conserto","reparo","refriger","ar condic"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.317 - Manutenção de Equipamento "),
+        (["material de escritorio","escritório","caneta","papel","impressora","tinta"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.308 - Material de Escritório "),
+        (["copa","cozinha","cafe","café","marmita","alimenta","lanche","restaurante","bolo","pipoca"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.310 - Material de Copa e Cozinha"),
+        (["material de limpeza","detergente","sabao","sabão","desinf"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.312 - Material de Limpeza"),
+        (["informatica","informática","computador","notebook","hd","mouse","teclado"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.311 - Material de informatica"),
+        (["segurança","monitoramento","camera","câmera"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.313 - Segurança e Monitoramento"),
+        (["marketing","publicidade","propaganda","redes sociais","instagram"],
+         [], "S",
+         "3.3 - DESPESAS DE VENDAS E MARKETING", "3.303 - Propaganda e publicidade"),
+        (["detetizacao","detetização","pest","dedetiz"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.326 - Manutencao e Conservacao"),
+        (["armario","armário","movel","móvel","cadeira","mesa"],
+         [], "S",
+         "4.1 - INVESTIMENTOS", "4.401 - Móveis e Utensílios "),
+        (["iof","juros limite","tarifa"], [], "S",
+         "2.1 IMPOSTOS E TAXAS", "2.102 - IOF"),
+        (["simples","das "], [], "S",
+         "2.1 IMPOSTOS E TAXAS", "2.101 - Simples Nacional (DAS)"),
+        (["vacina","vaccine","test","exame","laborat"],
+         [], "S",
+         "2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)", "2.401 - Teste/Vacinas para Revenda"),
+        (["ajuste","troco","saldo inicial"],
+         [], "E",
+         "1.4 - RECEITAS FINANCEIRAS", "1.401 - Ajuste de Caixa"),
+        (["pró-labore","pro labore","prolabore"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.320 - Pró-labore"),
+        (["prestação de serviço","prestacao","bpo","financeiro"],
+         [], "S",
+         "3.1 DESPESAS ADMINISTRATIVAS", "3.304 - Assessoria Financeira (BPO)"),
+        (["deposito","depósito","devolução","devolveu"],
+         [], "S",
+         "1.2 - RECEITAS NÃO OPERACIONAIS", "1.203 - Reembolso de despesas"),
+        (["retirada"], [], "S",
+         "5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS", "5.502 - Distribuição de Lucros"),
+    ]
+
+    def classificar(contato, descricao, tipo_mov):
+        """Retorna (categoria, subcategoria, confianca)"""
+        c = str(contato).lower().strip()
+        d = str(descricao).lower().strip()
+        t = tipo_mov  # "E" entrada ou "S" saída
+
+        for palavras_desc, palavras_contato, mov, cat, sub in REGRAS:
+            # verifica tipo de movimentação
+            if mov != "" and mov != t:
+                continue
+            # verifica palavras na descrição OU contato
+            desc_match = any(p in d for p in palavras_desc) or any(p in c for p in palavras_desc)
+            # verifica contato específico
+            if palavras_contato:
+                contato_match = any(p in c for p in palavras_contato)
+                if desc_match and contato_match:
+                    return cat, sub, "Alta"
+                if contato_match and mov == t:
+                    return cat, sub, "Média"
+            else:
+                if desc_match:
+                    return cat, sub, "Alta"
+
+        return "", "", "Manual"
+
+    def gerar_ofx(df_class, conta_nome="Caixinha"):
+        """Gera string OFX a partir do DataFrame classificado."""
+        linhas = [
+            "OFXHEADER:100",
+            "DATA:OFSGML",
+            "VERSION:102",
+            "SECURITY:NONE",
+            "ENCODING:UTF-8",
+            "CHARSET:1252",
+            "COMPRESSION:NONE",
+            "OLDFILEUID:NONE",
+            "NEWFILEUID:NONE",
+            "",
+            "<OFX>",
+            "<BANKMSGSRSV1>",
+            "<STMTTRNRS>",
+            "<TRNUID>1001",
+            "<STATUS><CODE>0<SEVERITY>INFO</STATUS>",
+            "<STMTRS>",
+            f"<CURDEF>BRL",
+            f"<BANKACCTFROM><BANKID>0000<ACCTID>{conta_nome}<ACCTTYPE>CHECKING</BANKACCTFROM>",
+            "<BANKTRANLIST>",
+        ]
+        for i, row in df_class.iterrows():
+            try:
+                dt = pd.to_datetime(row["Data"], dayfirst=True, errors="coerce")
+                dt_str = dt.strftime("%Y%m%d") if pd.notna(dt) else "20260101"
+            except Exception:
+                dt_str = "20260101"
+            entrada = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
+            saida   = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
+            if pd.notna(entrada) and entrada > 0:
+                valor = entrada
+            elif pd.notna(saida) and saida > 0:
+                valor = -saida
+            else:
+                valor = 0.0
+            trntype = "CREDIT" if valor >= 0 else "DEBIT"
+            memo = str(row.get("Descricao", row.get("Descrição","")))[:60].replace("<","").replace(">","")
+            contato = str(row.get("Contato", row.get("CONTATO/FORNECEDOR","")))[:40].replace("<","").replace(">","")
+            fitid = f"CX{dt_str}{i:04d}"
+            linhas += [
+                "<STMTTRN>",
+                f"<TRNTYPE>{trntype}",
+                f"<DTPOSTED>{dt_str}",
+                f"<TRNAMT>{valor:.2f}",
+                f"<FITID>{fitid}",
+                f"<NAME>{contato}",
+                f"<MEMO>{memo}",
+                "</STMTTRN>",
+            ]
+        linhas += [
+            "</BANKTRANLIST>",
+            "</STMTRS>",
+            "</STMTTRNRS>",
+            "</BANKMSGSRSV1>",
+            "</OFX>",
+        ]
+        return "\n".join(linhas)
+
+    # ── Upload da planilha ────────────────────────────────────────────────────
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Etapa 1 — Carregar planilha</div>', unsafe_allow_html=True)
+
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
+        st.markdown("**Planilha da Caixinha (Excel)**")
+        st.caption("O mesmo arquivo com abas mensais que a operadora preenche")
+        f_caixa = st.file_uploader(" ", type=["xlsx","xls"],
+                                   key="class_file", label_visibility="collapsed")
+    with col_u2:
+        st.markdown("**Cadastro de Contatos (opcional)**")
+        st.caption("Deixe vazio para usar o cadastro embutido, ou envie um atualizado")
+        f_contatos = st.file_uploader(" ", type=["xlsx","xls"],
+                                      key="class_contatos", label_visibility="collapsed")
+
+    if f_contatos:
+        try:
+            df_con_up = pd.ExcelFile(f_contatos).parse(0, header=0)
+            extra_medicos   = df_con_up[df_con_up["Categoria"].astype(str).str.contains("iatria|édico|eciatra|Pediatra", na=False, case=False)]["Nome"].str.lower().tolist()
+            extra_terapeutas= df_con_up[df_con_up["Categoria"].astype(str).str.contains("terapia|psicol|fono|nutri|fisio|musico|neuropsico|psicoped", na=False, case=False)]["Nome"].str.lower().tolist()
+            CONTATOS_MEDICOS   += extra_medicos
+            CONTATOS_TERAPEUTAS+= extra_terapeutas
+            st.success(f"Cadastro atualizado: {len(extra_medicos)} médicos e {len(extra_terapeutas)} terapeutas adicionais.")
+        except Exception as e:
+            st.warning(f"Não foi possível ler o cadastro: {e}")
+
+    if not f_caixa:
+        st.markdown("""
+        <div class="section-card" style="text-align:center;padding:2rem;margin-top:1rem;">
+            <div style="font-size:2rem;margin-bottom:.5rem;">🤖</div>
+            <div style="color:#556688;font-size:0.85rem;">Carregue a planilha Excel da Caixinha para iniciar</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+
+    try:
+        xl_caixa = pd.ExcelFile(f_caixa)
+    except Exception as e:
+        st.error(f"Erro ao ler arquivo: {e}")
+        st.stop()
+
+    abas_caixinha = [a for a in xl_caixa.sheet_names if "caixa" in a.lower() or "caixinha" in a.lower()]
+    todas_abas    = xl_caixa.sheet_names
+
+    st.markdown("---")
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Etapa 2 — Selecionar aba</div>', unsafe_allow_html=True)
+
+    aba_sel = st.selectbox(
+        "Selecione o mês para classificar",
+        abas_caixinha if abas_caixinha else todas_abas,
+        key="class_aba"
+    )
+
+    try:
+        df_raw = xl_caixa.parse(aba_sel, header=None)
+        # Find header row
+        header_row = 1
+        for i, row in df_raw.iterrows():
+            vals = [str(v).upper() for v in row.values]
+            if "DATA" in vals:
+                header_row = i
+                break
+        df_raw.columns = df_raw.iloc[header_row]
+        df_raw = df_raw.iloc[header_row+1:].reset_index(drop=True)
+        df_raw.columns = [str(c).strip() for c in df_raw.columns]
+
+        # Normalize columns
+        col_map = {}
+        for c in df_raw.columns:
+            cu = str(c).upper()
+            if "DATA" in cu: col_map[c] = "Data"
+            elif "CONTATO" in cu or "FORNEC" in cu: col_map[c] = "Contato"
+            elif "DESCRI" in cu: col_map[c] = "Descricao"
+            elif "ENTRADA" in cu: col_map[c] = "Entrada"
+            elif "SA" in cu and "DO" not in cu and len(c) < 10: col_map[c] = "Saida"
+            elif "SALDO" in cu: col_map[c] = "Saldo"
+            elif "SUBCATEG" in cu: col_map[c] = "SubCategoria_orig"
+            elif "CATEG" in cu: col_map[c] = "Categoria_orig"
+            elif "OBS" in cu: col_map[c] = "Observacao"
+        df_raw = df_raw.rename(columns=col_map)
+
+        needed = [c for c in ["Data","Contato","Descricao","Entrada","Saida","Saldo"] if c in df_raw.columns]
+        df_work = df_raw[needed].copy()
+        df_work = df_work[df_work["Data"].notna() & (df_work["Data"].astype(str).str.strip() != "") & (df_work["Data"].astype(str) != "nan")]
+        df_work["Data"] = pd.to_datetime(df_work["Data"], dayfirst=True, errors="coerce").dt.strftime("%d/%m/%Y")
+        df_work = df_work[df_work["Data"].notna()].reset_index(drop=True)
+
+    except Exception as e:
+        st.error(f"Erro ao ler aba '{aba_sel}': {e}")
+        st.stop()
+
+    st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin:.5rem 0 1rem;">Aba: <strong style="color:#C9A84C;">{aba_sel}</strong> · {len(df_work)} lançamentos encontrados</div>', unsafe_allow_html=True)
+
+    # ── Classificação automática ──────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Etapa 3 — Classificar</div>', unsafe_allow_html=True)
+
+    if st.button("🤖  Classificar Automaticamente", key="btn_class"):
+        categorias, subcategorias, confiancas = [], [], []
+        for _, row in df_work.iterrows():
+            contato  = str(row.get("Contato",""))
+            descricao= str(row.get("Descricao",""))
+            entrada  = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
+            saida    = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
+            tipo_mov = "E" if (pd.notna(entrada) and entrada > 0) else "S"
+            cat, sub, conf = classificar(contato, descricao, tipo_mov)
+            categorias.append(cat)
+            subcategorias.append(sub)
+            confiancas.append(conf)
+
+        df_work["Categoria"]    = categorias
+        df_work["SubCategoria"] = subcategorias
+        df_work["Confiança"]    = confiancas
+        st.session_state["df_classificado"] = df_work.copy()
+
+    if "df_classificado" in st.session_state:
+        df_class = st.session_state["df_classificado"].copy()
+
+        # Métricas
+        alta  = (df_class["Confiança"] == "Alta").sum()
+        media = (df_class["Confiança"] == "Média").sum()
+        manual= (df_class["Confiança"] == "Manual").sum()
+        total = len(df_class)
+
+        m1,m2,m3,m4 = st.columns(4)
+        for col,lbl,val,cls in [
+            (m1,"Total lançamentos", str(total), ""),
+            (m2,"Classificados (Alta)", str(alta), "green"),
+            (m3,"Classificados (Média)", str(media), "amber"),
+            (m4,"Requer revisão manual", str(manual), "red" if manual>0 else "green"),
+        ]:
+            col.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">{lbl}</div>
+                <div class="metric-value {cls}">{val}</div>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Filtro
+        filtro_conf = st.selectbox("Filtrar por confiança",
+            ["Todos","Alta","Média","Manual"], key="class_filter")
+        df_show = df_class if filtro_conf=="Todos" else df_class[df_class["Confiança"]==filtro_conf]
+        st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+        # ── Downloads ─────────────────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Exportar resultado</div>', unsafe_allow_html=True)
+
+        nome_base = f"caixinha_{aba_sel.replace(' ','_').replace('$','').strip()}_{datetime.today().strftime('%d%m%Y')}"
+
+        col_dl1, col_dl2, col_dl3 = st.columns(3)
+
+        with col_dl1:
+            st.markdown("**CSV — Meu Dinheiro**")
+            st.caption("Importação direta de lançamentos com categoria preenchida")
+            csv_cols = ["Data","Contato","Descricao","Entrada","Saida","Categoria","SubCategoria"]
+            csv_cols_exist = [c for c in csv_cols if c in df_class.columns]
+            csv_df = df_class[csv_cols_exist].copy()
+            csv_df.columns = ["Data","Contato/Fornecedor","Descrição","Entrada","Saída","Categoria","Subcategoria"][:len(csv_cols_exist)]
+            csv_bytes = csv_df.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+            st.download_button(
+                "⬇️  Baixar CSV",
+                data=csv_bytes,
+                file_name=f"{nome_base}.csv",
+                mime="text/csv",
+            )
+
+        with col_dl2:
+            st.markdown("**Excel — revisão**")
+            st.caption("Planilha completa com coluna de confiança para revisar")
+            st.download_button(
+                "⬇️  Baixar Excel",
+                data=to_excel_bytes(df_class),
+                file_name=f"{nome_base}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+        with col_dl3:
+            st.markdown("**OFX — importação como extrato**")
+            st.caption("Importa como conta bancária no Meu Dinheiro para conciliação")
+            ofx_str  = gerar_ofx(df_class, conta_nome=aba_sel)
+            ofx_bytes= ofx_str.encode("utf-8")
+            st.download_button(
+                "⬇️  Baixar OFX",
+                data=ofx_bytes,
+                file_name=f"{nome_base}.ofx",
+                mime="application/octet-stream",
+            )
+
+        st.markdown("""
+        <div class="section-card" style="margin-top:1rem;">
+            <div class="section-card-title">Como usar no Meu Dinheiro</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;font-size:0.82rem;color:#94a3b8;line-height:1.7;">
+                <div>
+                    <strong style="color:#C9A84C;">Via CSV:</strong><br>
+                    Menu → Importar → Lançamentos → selecione o arquivo CSV → mapeie as colunas → importar
+                </div>
+                <div>
+                    <strong style="color:#C9A84C;">Via OFX:</strong><br>
+                    Menu → Importar → Extrato Bancário → selecione o arquivo OFX → vincule à conta Caixinha → importar
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
