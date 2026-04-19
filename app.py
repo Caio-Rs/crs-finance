@@ -637,64 +637,135 @@ elif page == "auditoria":
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
+
+
 # ════════════════════════════════════════════════════════════════════════════
-# 3. CONCILIAÇÃO DE SALDO
-# Foco: o saldo do banco bate com o saldo do sistema no período? (totais)
+# 3. CONCILIAÇÃO DE SALDO — Modo Simples + Modo Consolidado
 # ════════════════════════════════════════════════════════════════════════════
 elif page == "conciliacao":
     st.markdown('<div class="page-title">Conciliação de Saldo</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="page-sub">Verifica se o saldo total do banco bate com o saldo do sistema no período
-    — comparando totais diários, mensais e diferença acumulada.</div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Verifica se o saldo do banco bate com o sistema — com suporte a conta de aplicação automática (Itaú Aplic Aut Mais).</div>', unsafe_allow_html=True)
 
-    st.markdown("""
-    <div class="section-card" style="margin-bottom:1rem;">
-        <div class="section-card-title">Como funciona</div>
-        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
-            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
-                <span style="color:#C9A84C;font-weight:600;">Entrada:</span> extrato OFX/CSV do banco 
-                + exportação do sistema de gestão para o mesmo período
-            </div>
-            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
-                <span style="color:#C9A84C;font-weight:600;">Processo:</span> soma os valores por dia 
-                e compara banco vs sistema — ideal para fechamento mensal
-            </div>
-            <div style="flex:1;min-width:160px;font-size:0.82rem;color:#94a3b8;line-height:1.6;">
-                <span style="color:#C9A84C;font-weight:600;">Resultado:</span> saldo do período no banco,
-                saldo no sistema, diferença e tabela por dia
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # ── Parser extrato aplicação XLS (HTML disfarçado do Itaú) ───────────────
+    def parse_aplic_xls(arquivo) -> pd.DataFrame:
+        """Lê o extrato XLS da Aplic Aut Mais do Itaú (HTML disfarçado)."""
+        from bs4 import BeautifulSoup
+        import re
+        try:
+            conteudo = arquivo.read().decode("iso-8859-1", errors="replace")
+        except Exception:
+            arquivo.seek(0)
+            conteudo = arquivo.read().decode("utf-8", errors="replace")
 
-    # Upload
-    col_u1, col_u2 = st.columns(2)
-    with col_u1:
-        st.markdown("**Extrato Bancário**")
-        st.caption("OFX · CSV · Excel — exportado pelo banco")
-        f_c_ext = st.file_uploader(" ", type=["ofx","ofc","csv","xlsx","xls","txt"],
-                                   key="conc_ext", label_visibility="collapsed")
-    with col_u2:
-        st.markdown("**Sistema de Gestão**")
-        st.caption("CSV · Excel — Omie · Conta Azul · Nibo · Sienge · Excel próprio")
-        f_c_sis = st.file_uploader(" ", type=["csv","xlsx","xls"],
-                                   key="conc_sis", label_visibility="collapsed")
+        soup = BeautifulSoup(conteudo, "html.parser")
+        table = soup.find("table")
+        if not table:
+            return pd.DataFrame()
 
-    if not f_c_ext or not f_c_sis:
-        st.markdown("""
+        rows = table.find_all("tr")
+        transactions = []
+        for row in rows:
+            cells = [td.get_text(strip=True) for td in row.find_all(["td","th"])]
+            cells = [c for c in cells if c != ""]
+            if len(cells) < 2:
+                continue
+            data = cells[0]
+            if not re.match(r"\d{2}/\d{2}/\d{4}", data):
+                continue
+            doc = cells[1] if len(cells) > 1 else ""
+            if "Total" in str(cells):
+                continue
+            if doc.startswith("A") and len(cells) > 2:
+                try:
+                    valor = float(cells[2].replace(".","").replace(",","."))
+                    transactions.append({"Data": data, "Valor": -valor, "Descrição": "APL APLIC AUT MAIS"})
+                except Exception:
+                    pass
+            elif doc.startswith("R") and len(cells) > 7:
+                try:
+                    valor = float(cells[7].replace(".","").replace(",","."))
+                    transactions.append({"Data": data, "Valor": valor, "Descrição": "RES APLIC AUT MAIS"})
+                except Exception:
+                    pass
+
+        df = pd.DataFrame(transactions)
+        if not df.empty:
+            df["_data"] = pd.to_datetime(df["Data"], dayfirst=True, errors="coerce")
+        return df
+
+    # ── Modo de conciliação ───────────────────────────────────────────────────
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Modo de conciliação</div>', unsafe_allow_html=True)
+
+    modo_col1, modo_col2 = st.columns(2)
+    with modo_col1:
+        modo_simples = st.container()
+        modo_simples.markdown("""
+        <div style="background:#162236;border:0.5px solid #253550;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;">
+            <div style="font-size:0.88rem;font-weight:600;color:#f1f5f9;margin-bottom:4px;">Modo Simples</div>
+            <div style="font-size:0.78rem;color:#8899BB;line-height:1.5;">1 extrato OFX/CSV + sistema. Transferências internas filtradas por palavra-chave.</div>
+            <div style="margin-top:8px;"><span style="background:#14532d;color:#86efac;font-size:0.7rem;padding:2px 8px;border-radius:4px;font-weight:600;">1 arquivo OFX</span></div>
+        </div>""", unsafe_allow_html=True)
+    with modo_col2:
+        modo_consolidado = st.container()
+        modo_consolidado.markdown("""
+        <div style="background:#1B2A4A;border:2px solid #C9A84C;border-radius:10px;padding:1rem 1.25rem;cursor:pointer;">
+            <div style="font-size:0.88rem;font-weight:600;color:#C9A84C;margin-bottom:4px;">Modo Consolidado ★</div>
+            <div style="font-size:0.78rem;color:#8899BB;line-height:1.5;">CC + Aplicação + sistema. Consolida os saldos e neutraliza transferências internas automaticamente.</div>
+            <div style="margin-top:8px;"><span style="background:#1e3a5f;color:#93c5fd;font-size:0.7rem;padding:2px 8px;border-radius:4px;font-weight:600;">2 OFX + sistema</span></div>
+        </div>""", unsafe_allow_html=True)
+
+    modo = st.radio(" ", ["Simples", "Consolidado"], horizontal=True,
+                    key="conc_modo", label_visibility="collapsed")
+
+    st.markdown("---")
+
+    # ── UPLOADS ───────────────────────────────────────────────────────────────
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Carregar arquivos</div>', unsafe_allow_html=True)
+
+    if modo == "Simples":
+        u1, u2 = st.columns(2)
+        with u1:
+            st.markdown("**Extrato Bancário**")
+            st.caption("OFX · CSV · Excel — exportado pelo banco")
+            f_c_ext = st.file_uploader(" ", type=["ofx","ofc","csv","xlsx","xls","txt"], key="conc_ext", label_visibility="collapsed")
+        with u2:
+            st.markdown("**Sistema de Gestão**")
+            st.caption("CSV · Excel — Omie · Conta Azul · Nibo · Sienge · Meu Dinheiro")
+            f_c_sis = st.file_uploader(" ", type=["csv","xlsx","xls"], key="conc_sis", label_visibility="collapsed")
+        f_aplic = None
+    else:
+        u1, u2, u3 = st.columns(3)
+        with u1:
+            st.markdown("**Conta Corrente (OFX)**")
+            st.caption("Extrato principal do banco")
+            f_c_ext = st.file_uploader(" ", type=["ofx","ofc","csv","xlsx","xls","txt"], key="conc_ext", label_visibility="collapsed")
+        with u2:
+            st.markdown("**Conta Aplicação (XLS/CSV)**")
+            st.caption("Extrato Aplic Aut Mais — formato XLS do Itaú ou CSV")
+            f_aplic = st.file_uploader(" ", type=["xls","xlsx","csv","txt"], key="conc_aplic", label_visibility="collapsed")
+        with u3:
+            st.markdown("**Sistema de Gestão**")
+            st.caption("CSV · Excel — exportado do sistema")
+            f_c_sis = st.file_uploader(" ", type=["csv","xlsx","xls"], key="conc_sis", label_visibility="collapsed")
+
+    arquivos_ok = f_c_ext and f_c_sis
+    if modo == "Consolidado":
+        arquivos_ok = arquivos_ok and f_aplic
+
+    if not arquivos_ok:
+        msg = "Carregue o extrato OFX e o sistema para iniciar." if modo == "Simples" else "Carregue os 3 arquivos (CC + Aplicação + Sistema) para iniciar."
+        st.markdown(f"""
         <div class="section-card" style="text-align:center;padding:2rem;margin-top:1rem;">
             <div style="font-size:2rem;margin-bottom:.5rem;">⚖️</div>
-            <div style="color:#556688;font-size:0.85rem;">Carregue os dois arquivos para conciliar o saldo do período</div>
-        </div>
-        """, unsafe_allow_html=True)
+            <div style="color:#556688;font-size:0.85rem;">{msg}</div>
+        </div>""", unsafe_allow_html=True)
         st.stop()
 
+    # ── CARREGA DADOS ─────────────────────────────────────────────────────────
     try:
         df_ext_raw = load_file(f_c_ext)
     except Exception as e:
-        st.error(f"Erro ao ler extrato: {e}")
-        st.stop()
+        st.error(f"Erro ao ler extrato: {e}"); st.stop()
 
     aba_sis = None
     if f_c_sis.name.endswith((".xlsx",".xls")):
@@ -708,14 +779,23 @@ elif page == "conciliacao":
     try:
         df_sis_raw = pd.read_excel(f_c_sis, sheet_name=aba_sis) if aba_sis else load_file(f_c_sis)
     except Exception as e:
-        st.error(f"Erro ao ler sistema: {e}")
-        st.stop()
+        st.error(f"Erro ao ler sistema: {e}"); st.stop()
+
+    df_aplic = pd.DataFrame()
+    if modo == "Consolidado" and f_aplic:
+        try:
+            df_aplic = parse_aplic_xls(f_aplic)
+            if df_aplic.empty:
+                st.warning("Não foi possível extrair transações do extrato de aplicação. Verifique se é o formato XLS do Itaú.")
+            else:
+                st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-bottom:8px;">✓ Extrato aplicação: {len(df_aplic)} movimentações carregadas</div>', unsafe_allow_html=True)
+        except Exception as e:
+            st.warning(f"Erro ao ler extrato de aplicação: {e}")
 
     if df_ext_raw.empty or df_sis_raw.empty:
-        st.warning("Um dos arquivos está vazio.")
-        st.stop()
+        st.warning("Um dos arquivos está vazio."); st.stop()
 
-    # Mapeamento
+    # ── MAPEAMENTO DE COLUNAS ─────────────────────────────────────────────────
     st.markdown("---")
     st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Mapear colunas</div>', unsafe_allow_html=True)
 
@@ -727,75 +807,59 @@ elif page == "conciliacao":
     with c3: col_data_s = st.selectbox("Data (sistema)", cols_sis, key="ccs_d2")
     with c4: col_val_s  = st.selectbox("Valor (sistema)", cols_sis, index=min(2,len(cols_sis)-1), key="ccs_v2")
 
-    # Filtro extrato bancário — excluir aplicações/resgates automáticos
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.5rem;">Filtrar transferências internas (extrato bancário)</div>', unsafe_allow_html=True)
-    st.caption("Aplicações automáticas e resgates do Itaú (ex: APLIC AUT MAIS) se cancelam e zeram os totais. Marque para excluí-los.")
+    # ── FILTROS TRANSFERÊNCIAS ────────────────────────────────────────────────
+    st.markdown("---")
 
-    palavras_padrao = ["APLIC AUT","RES APLIC","APL APLIC","RENDIMENTOS REND PAGO","TRANSF PROPRIA","TED PROPRIA"]
+    if modo == "Simples":
+        # Filtro extrato
+        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.5rem;">Filtrar transferências internas (extrato)</div>', unsafe_allow_html=True)
+        st.caption("Aplicações automáticas e resgates se cancelam e zeram os totais.")
+        palavras_padrao = ["APLIC AUT","RES APLIC","APL APLIC","RENDIMENTOS REND PAGO","TRANSF PROPRIA","TED PROPRIA"]
+        fext1, fext2 = st.columns([1,2])
+        with fext1:
+            usar_filtro_ext = st.checkbox("Excluir transferências internas do extrato", value=True, key="chk_ext_filtro")
+        with fext2:
+            if usar_filtro_ext:
+                desc_cols_ext = [c for c in cols_ext if any(x in c.lower() for x in ["desc","memo","hist","nome","name"])]
+                col_desc_ext_filtro = st.selectbox("Coluna de descrição (extrato)", cols_ext,
+                    index=cols_ext.index(desc_cols_ext[0]) if desc_cols_ext else min(1,len(cols_ext)-1), key="cce_desc_filtro")
+                palavras_excluir_ext = st.multiselect("Palavras-chave para excluir", options=palavras_padrao,
+                    default=palavras_padrao, key="ext_palavras")
 
-    col_ext_filtro1, col_ext_filtro2 = st.columns([1,2])
-    with col_ext_filtro1:
-        usar_filtro_ext = st.checkbox("Excluir transferências internas do extrato", value=True, key="chk_ext_filtro")
-    with col_ext_filtro2:
-        if usar_filtro_ext:
-            # Detecta coluna de descrição no extrato
-            desc_cols_ext = [c for c in cols_ext if any(x in c.lower() for x in ["desc","memo","hist","nome","name"])]
-            col_desc_ext_filtro = st.selectbox(
-                "Coluna de descrição (extrato)",
-                cols_ext,
-                index=cols_ext.index(desc_cols_ext[0]) if desc_cols_ext else min(1,len(cols_ext)-1),
-                key="cce_desc_filtro"
-            )
-            palavras_excluir_ext = st.multiselect(
-                "Palavras-chave para excluir",
-                options=palavras_padrao + sorted(set(df_ext_raw[col_desc_ext_filtro].dropna().unique().tolist()) - set(palavras_padrao))[:20],
-                default=palavras_padrao,
-                key="ext_palavras"
-            )
+        if usar_filtro_ext and palavras_excluir_ext:
+            mask_ext = df_ext_raw[col_desc_ext_filtro].str.upper().str.contains(
+                "|".join([re.escape(p) for p in palavras_excluir_ext]), na=False)
+            n_antes = len(df_ext_raw)
+            df_ext_raw = df_ext_raw[~mask_ext].copy()
+            st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes-len(df_ext_raw)} lançamentos internos excluídos · {len(df_ext_raw)} restantes</div>', unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;font-size:0.82rem;color:#C9A84C;margin-bottom:12px;">
+            ✓ <strong>Modo Consolidado:</strong> as transferências entre CC e Aplicação são neutralizadas automaticamente.
+            O saldo final = CC + Aplicação, sem distorções.
+        </div>""", unsafe_allow_html=True)
 
-    if usar_filtro_ext and palavras_excluir_ext:
-        mask_ext = df_ext_raw[col_desc_ext_filtro].str.upper().str.contains(
-            "|".join([re.escape(p) for p in palavras_excluir_ext]), na=False
-        )
-        n_antes_ext = len(df_ext_raw)
-        df_ext_raw = df_ext_raw[~mask_ext].copy()
-        n_depois_ext = len(df_ext_raw)
-        st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes_ext - n_depois_ext} lançamentos internos excluídos do extrato · {n_depois_ext} restantes</div>', unsafe_allow_html=True)
-
-    # Filtro de tipo sistema (ex: excluir Transferência do Meu Dinheiro, Conta Azul, etc.)
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.5rem;">Filtrar transferências internas (sistema de gestão)</div>', unsafe_allow_html=True)
-    st.caption("Se o sistema exporta uma coluna 'Tipo', selecione e marque 'Transferência' para excluir.")
-
-    col_tipo_col, col_tipo_excl = st.columns(2)
-    with col_tipo_col:
+    # Filtro sistema
+    st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.5rem;margin-top:.75rem;">Filtrar transferências internas (sistema)</div>', unsafe_allow_html=True)
+    ft1, ft2 = st.columns(2)
+    with ft1:
         cols_sis_opcoes = ["— Nenhum (usar todos os lançamentos) —"] + cols_sis
-        col_tipo_sis = st.selectbox(
-            "Coluna de tipo (sistema)",
-            cols_sis_opcoes, key="ccs_tipo",
-            help="Ex: coluna 'Tipo' do Meu Dinheiro com valores Receita, Despesa, Transferência."
-        )
-    with col_tipo_excl:
+        col_tipo_sis = st.selectbox("Coluna de tipo (sistema)", cols_sis_opcoes, key="ccs_tipo")
+    with ft2:
         tipos_excluir = []
         if col_tipo_sis != "— Nenhum (usar todos os lançamentos) —":
             tipos_unicos = df_sis_raw[col_tipo_sis].dropna().unique().tolist()
-            tipos_excluir = st.multiselect(
-                "Excluir tipos",
-                tipos_unicos,
-                default=[t for t in tipos_unicos if "transfer" in str(t).lower()],
-                key="ccs_excluir",
-            )
+            tipos_excluir = st.multiselect("Excluir tipos", tipos_unicos,
+                default=[t for t in tipos_unicos if "transfer" in str(t).lower()], key="ccs_excluir")
 
     if col_tipo_sis != "— Nenhum (usar todos os lançamentos) —" and tipos_excluir:
         n_antes = len(df_sis_raw)
         df_sis_raw = df_sis_raw[~df_sis_raw[col_tipo_sis].isin(tipos_excluir)].copy()
-        n_depois = len(df_sis_raw)
-        st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes - n_depois} transferências excluídas do sistema · {n_depois} lançamentos restantes</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-top:4px;">✓ {n_antes-len(df_sis_raw)} transferências excluídas do sistema · {len(df_sis_raw)} restantes</div>', unsafe_allow_html=True)
 
-    # Tipo análise + período
-    st.markdown("<br>", unsafe_allow_html=True)
-    ca1,ca2 = st.columns([2,1])
+    # ── TIPO ANÁLISE + PERÍODO ────────────────────────────────────────────────
+    st.markdown("---")
+    ca1, ca2 = st.columns([2,1])
     with ca1:
         tipo_analise = st.selectbox("Tipo de análise", [
             "Comparação de Valores por Dia",
@@ -803,13 +867,13 @@ elif page == "conciliacao":
             "Comparação por Chave Forte (Data+Valor)",
         ], key="conc_tipo")
     with ca2:
-        data_range = st.text_input("Filtrar período (opcional)",
-                                   placeholder="DD/MM/AAAA – DD/MM/AAAA", key="conc_range")
+        data_range = st.text_input("Filtrar período (opcional)", placeholder="DD/MM/AAAA – DD/MM/AAAA", key="conc_range")
 
     st.markdown("<br>", unsafe_allow_html=True)
     if not st.button("⚖️  Conciliar Saldo", key="btn_conc"):
         st.stop()
 
+    # ── PROCESSA ──────────────────────────────────────────────────────────────
     try:
         df_ext = df_ext_raw.copy()
         df_sis = df_sis_raw.copy()
@@ -817,6 +881,12 @@ elif page == "conciliacao":
         df_sis[col_val_s] = parse_numeric(df_sis[col_val_s])
         df_ext["_data"] = pd.to_datetime(df_ext[col_data_e], dayfirst=True, errors="coerce")
         df_sis["_data"] = pd.to_datetime(df_sis[col_data_s], dayfirst=True, errors="coerce")
+
+        # Modo consolidado: adiciona transações da aplicação ao extrato CC
+        if modo == "Consolidado" and not df_aplic.empty:
+            df_aplic_add = df_aplic[["_data","Valor","Descrição"]].copy()
+            df_aplic_add.columns = ["_data", col_val_e, col_data_e]
+            df_ext = pd.concat([df_ext, df_aplic_add], ignore_index=True)
 
         dt_min = df_ext["_data"].min()
         dt_max = df_ext["_data"].max()
@@ -837,30 +907,59 @@ elif page == "conciliacao":
 
         periodo_txt = f"{dt_min.strftime('%d/%m/%Y')} a {dt_max.strftime('%d/%m/%Y')}"
         st.markdown("---")
-        st.markdown(f'<div style="font-size:0.85rem;color:#8899BB;margin-bottom:1rem;">Período: <strong style="color:#C9A84C;">{periodo_txt}</strong></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:0.85rem;color:#8899BB;margin-bottom:1rem;">Período: <strong style="color:#C9A84C;">{periodo_txt}</strong>'
+                    + (f' &nbsp;·&nbsp; <span style="color:#93c5fd;">Modo Consolidado (CC + Aplicação)</span>' if modo=="Consolidado" else '')
+                    + '</div>', unsafe_allow_html=True)
 
-        # Saldos em destaque
-        c1,c2,c3 = st.columns(3)
-        for col,lbl,val,origem,neg in [
-            (c1,"Saldo do Período no Banco",   saldo_banco,"OFX", saldo_banco<0),
-            (c2,"Saldo do Período no Sistema", saldo_erp,  "ERP", saldo_erp<0),
-            (c3,"Diferença",                   diferenca,  "BRL", diferenca!=0),
-        ]:
-            cor_val = "#f87171" if neg else "#4ade80"
-            cor_brd = "#f87171" if diferenca!=0 and col==c3 else "#C9A84C"
-            col.markdown(f"""
-            <div style="background:#1B2A4A;border-radius:10px;padding:1rem 1.25rem;border-left:3px solid {cor_brd};margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <span style="font-size:0.68rem;color:#8899BB;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">{lbl}</span>
-                    <span style="font-size:0.65rem;background:#253550;color:#8899BB;padding:2px 7px;border-radius:4px;">{origem}</span>
-                </div>
-                <div style="font-size:1.4rem;font-weight:700;color:{cor_val};">{fmt_brl(val)}</div>
-            </div>""", unsafe_allow_html=True)
+        # Métricas
+        if modo == "Consolidado" and not df_aplic.empty:
+            # Mostra CC, Aplicação e Sistema separados + consolidado
+            saldo_cc    = df_ext_raw.copy()
+            saldo_cc[col_val_e] = parse_numeric(saldo_cc[col_val_e])
+            saldo_cc["_data"] = pd.to_datetime(saldo_cc[col_data_e], dayfirst=True, errors="coerce")
+            saldo_cc_val = saldo_cc[(saldo_cc["_data"]>=dt_min)&(saldo_cc["_data"]<=dt_max)][col_val_e].sum()
+            saldo_ap_val = df_aplic[(df_aplic["_data"]>=dt_min)&(df_aplic["_data"]<=dt_max)]["Valor"].sum()
+
+            m1,m2,m3,m4,m5 = st.columns(5)
+            for col,lbl,val,origem,neg in [
+                (m1,"Saldo CC (banco)",         saldo_cc_val, "CC",   saldo_cc_val<0),
+                (m2,"Saldo Aplicação (banco)",   saldo_ap_val, "APLIC",saldo_ap_val<0),
+                (m3,"Total banco consolidado",   saldo_banco,  "OFX",  saldo_banco<0),
+                (m4,"Saldo no sistema",          saldo_erp,    "ERP",  saldo_erp<0),
+                (m5,"Diferença",                 diferenca,    "BRL",  diferenca!=0),
+            ]:
+                cor_val = "#f87171" if neg else "#4ade80"
+                cor_brd = "#f87171" if (neg and col==m5) else "#C9A84C"
+                col.markdown(f"""
+                <div style="background:#1B2A4A;border-radius:10px;padding:0.9rem 1rem;border-left:3px solid {cor_brd};margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                        <span style="font-size:0.65rem;color:#8899BB;font-weight:600;letter-spacing:.05em;text-transform:uppercase;">{lbl}</span>
+                        <span style="font-size:0.6rem;background:#253550;color:#8899BB;padding:1px 6px;border-radius:4px;">{origem}</span>
+                    </div>
+                    <div style="font-size:1.15rem;font-weight:700;color:{cor_val};">{fmt_brl(val)}</div>
+                </div>""", unsafe_allow_html=True)
+        else:
+            c1,c2,c3 = st.columns(3)
+            for col,lbl,val,origem,neg in [
+                (c1,"Saldo do Período no Banco",   saldo_banco,"OFX",saldo_banco<0),
+                (c2,"Saldo do Período no Sistema", saldo_erp,  "ERP",saldo_erp<0),
+                (c3,"Diferença",                   diferenca,  "BRL",diferenca!=0),
+            ]:
+                cor_val = "#f87171" if neg else "#4ade80"
+                cor_brd = "#f87171" if (diferenca!=0 and col==c3) else "#C9A84C"
+                col.markdown(f"""
+                <div style="background:#1B2A4A;border-radius:10px;padding:1rem 1.25rem;border-left:3px solid {cor_brd};margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                        <span style="font-size:0.68rem;color:#8899BB;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">{lbl}</span>
+                        <span style="font-size:0.65rem;background:#253550;color:#8899BB;padding:2px 7px;border-radius:4px;">{origem}</span>
+                    </div>
+                    <div style="font-size:1.4rem;font-weight:700;color:{cor_val};">{fmt_brl(val)}</div>
+                </div>""", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(f'<div style="font-size:0.8rem;color:#8899BB;margin-bottom:.75rem;">Análise: <strong style="color:#C9A84C;">{tipo_analise}</strong></div>', unsafe_allow_html=True)
 
-        # Tabela por tipo
+        # Tabela
         if tipo_analise == "Comparação de Valores por Dia":
             grp_e = df_ext_f.groupby("_data")[col_val_e].sum().reset_index()
             grp_s = df_sis_f.groupby("_data")[col_val_s].sum().reset_index()
@@ -884,22 +983,22 @@ elif page == "conciliacao":
         else:  # Chave Forte
             df_ext_f["_chave"] = df_ext_f["_data"].dt.strftime("%Y%m%d")+"_"+df_ext_f[col_val_e].round(2).astype(str)
             df_sis_f["_chave"] = df_sis_f["_data"].dt.strftime("%Y%m%d")+"_"+df_sis_f[col_val_s].round(2).astype(str)
-            chaves_b = set(df_ext_f["_chave"]); chaves_s = set(df_sis_f["_chave"])
-            conc = chaves_b & chaves_s; so_b = chaves_b-chaves_s; so_s = chaves_s-chaves_b
-            ck1,ck2,ck3 = st.columns(3)
+            cb=set(df_ext_f["_chave"]); cs=set(df_sis_f["_chave"])
+            conc=cb&cs; so_b=cb-cs; so_s=cs-cb
+            ck1,ck2,ck3=st.columns(3)
             for col,lbl,val,cls in [(ck1,"Conciliados",len(conc),"green"),(ck2,"Só no Banco",len(so_b),"amber"),(ck3,"Só no Sistema",len(so_s),"amber")]:
-                col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
+                col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>',unsafe_allow_html=True)
+            st.markdown("<br>",unsafe_allow_html=True)
             rows=[]
             for _,r in df_ext_f.iterrows():
-                rows.append({"Data":r["_data"].strftime("%d/%m/%Y"),"Valor Banco":fmt_brl(r[col_val_e]),"Valor Sistema":"—","Status":"✅ Conciliado" if r["_chave"] in chaves_s else "⚠️ Só no Banco"})
+                rows.append({"Data":r["_data"].strftime("%d/%m/%Y"),"Valor Banco":fmt_brl(r[col_val_e]),"Valor Sistema":"—","Status":"✅ Conciliado" if r["_chave"] in cs else "⚠️ Só no Banco"})
             for _,r in df_sis_f.iterrows():
-                if r["_chave"] not in chaves_b:
+                if r["_chave"] not in cb:
                     rows.append({"Data":r["_data"].strftime("%d/%m/%Y"),"Valor Banco":"—","Valor Sistema":fmt_brl(r[col_val_s]),"Status":"ℹ️ Só no Sistema"})
             result = pd.DataFrame(rows)
 
         st.dataframe(result, use_container_width=True, hide_index=True)
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<br>",unsafe_allow_html=True)
         st.download_button("⬇️  Baixar Relatório de Conciliação",
             data=to_excel_bytes(result),
             file_name=f"conciliacao_saldo_{datetime.today().strftime('%d%m%Y')}.xlsx",
@@ -909,9 +1008,6 @@ elif page == "conciliacao":
         st.error(f"Erro ao processar: {e}")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# 4. CONVERSOR OFX → EXCEL
-# ════════════════════════════════════════════════════════════════════════════
 elif page == "conversor":
     st.markdown('<div class="page-title">Conversor OFX → Excel</div>', unsafe_allow_html=True)
     st.markdown('<div class="page-sub">Converta extratos bancários OFX em planilha Excel estruturada</div>', unsafe_allow_html=True)
