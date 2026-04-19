@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 import io
+import json
 from datetime import datetime
 
 # ── Configuração da página ────────────────────────────────────────────────────
@@ -981,91 +982,83 @@ elif page == "conversor":
 
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
-# 6. CLASSIFICADOR CAIXINHA — com aprendizado de regras persistentes
+# ════════════════════════════════════════════════════════════════════════════
+# 6. CLASSIFICADOR CAIXINHA — com plano de contas dinâmico + aprendizado
 # ════════════════════════════════════════════════════════════════════════════
 elif page == "classificador":
     st.markdown('<div class="page-title">Classificador Caixinha</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Classifica automaticamente os lançamentos pelo plano de contas, aprende com suas correções e salva as regras para os próximos meses.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Classifica automaticamente os lançamentos, aprende com suas correções e aceita atualizações do plano de contas.</div>', unsafe_allow_html=True)
 
-    # ── Plano de contas completo ──────────────────────────────────────────────
-    PLANO_CATS = [
-        "1.1 - RECEITAS OPERACIONAIS",
-        "1.2 - RECEITAS NÃO OPERACIONAIS",
-        "1.3 - DEVOLUÇÕES DE COMPRAS",
-        "1.4 - RECEITAS FINANCEIRAS",
-        "1.5 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS",
-        "1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS",
-        "2.1 IMPOSTOS E TAXAS",
-        "2.2 DEDUCOES DE RECEITAS",
-        "2.3 - CUSTO DIRETO COM PESSOAL (MOD)",
-        "2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)",
-        "3.1 DESPESAS ADMINISTRATIVAS",
-        "3.2 - DESPESAS COM PESSOAL",
-        "3.3 - DESPESAS DE VENDAS E MARKETING",
-        "3.4 - DESPESAS FINANCEIRAS",
-        "4.1 - INVESTIMENTOS",
-        "5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS",
-        "6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS",
-        "Ajuste de Caixa 2026 - Inicio",
-    ]
-    PLANO_SUBCATS = {
-        "1.1 - RECEITAS OPERACIONAIS": ["1.101 - Honorários Clínicos - Medicos","1.102 - Honorários Clínicos - Terapeutas","1.103 - Receita Vendas Cartao - Rede Credito e Debito","1.104 - Receita Recebimento Notas Fiscais","1.105 - Receita venda de Vacinas"],
-        "1.2 - RECEITAS NÃO OPERACIONAIS": ["1.201 - Exames e Teste - Laboratoriais ","1.202 - Venda de Ativos","1.203 - Reembolso de despesas","1.206 - Receitas Eventuais – Estagios"],
-        "1.3 - DEVOLUÇÕES DE COMPRAS": ["1.301 - Devoluções de Compra de Serviços","1.302 -  Devoluções de Compra de ativo"],
-        "1.4 - RECEITAS FINANCEIRAS": ["1.401 - Ajuste de Caixa","1.402 - Descontos obtidos","1.403 - Rendimentos de Aplicacoes","1.404 - Juros s/ duplicatas","1.405 - Multas"],
-        "1.5 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS": ["1.501 - Aporte de Capital","1.502 - Cheque Especial Utilizado/Emprestimos","1.503 - Mútuo de Sócios"],
-        "1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS": ["1.601 - Valores a Repassar - Médicos","1.602 - Valores a Repassar - Terapeutas"],
-        "2.1 IMPOSTOS E TAXAS": ["2.101 - Simples Nacional (DAS)","2.102 - IOF"],
-        "2.2 DEDUCOES DE RECEITAS": ["2.201 - Devolucao de vendas/Reembolso","2.202 - Descontos ","2.203 - Desembolso - Nota Fiscal"],
-        "2.3 - CUSTO DIRETO COM PESSOAL (MOD)": ["2.301 - Salario - Fonoaudiologia (C)","2.302 - Salario - Psicologa (C)","2.303 - Adiantamento (C)"],
-        "2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)": ["2.401 - Teste/Vacinas para Revenda","2.402 - Material de Consumo Clinico"],
-        "3.1 DESPESAS ADMINISTRATIVAS": ["3.301 - Água e Esgoto","3.302 - IPTU","3.303 - Aluguel","3.304 - Assessoria Financeira (BPO)","3.305 - Consultoria ","3.306 - Cartorio","3.307 - Energia Elétrica","3.308 - Material de Escritório ","3.309 - Confraternizacao/Coffee break","3.310 - Material de Copa e Cozinha","3.311 - Material de informatica","3.312 - Material de Limpeza","3.313 - Segurança e Monitoramento","3.314 - Contabilidade","3.315 - Telefone e Internet","3.316 - Aluguel de Maquinhinha - Adquirente de Cartão","3.317 - Manutenção de Equipamento ","3.318 - Softwares e Sistemas de Gestao","3.319 - Serviços de Terceiros - Montagem e instalações","3.320 - Pró-labore","3.321 - Manutenção de Informática (contrato)","3.322 - Certificados Digitais","3.323 - Frete/Transportadora","3.324 - Seguro do Imóvel","3.325 - Taxas de Adesao","3.326 - Manutencao e Conservacao","3.327 - Viagens - Passagem Aérea e outros","3.328 - Viagens - Serviço de Hospedagem","3.329 - Viagens - Transporte e Locomoção","3.330 - Alvará, Vistoria, Taxas Municipais","3.331 - Serviço de Limpeza "],
-        "3.2 - DESPESAS COM PESSOAL": ["3.301 - Salarios (D)","3.302 - 13º Salario (D)","3.303 - Férias (D)","3.304 - Vale Alimentacao (D)","3.305 - Vale Transporte (D)","3.306 - Uniforme (D)","3.307 - Cursos e Treinamentos (D)","3.308 - Exames Admissional/Demissional","3.309 - Vale Manicure (D)","3.310 - Gratificação (D)","3.311 - FGTS (D)","3.312 - INSS/IRRF (D)","3.313 - Estagiários (D)","3.314 - Rescisão"],
-        "3.3 - DESPESAS DE VENDAS E MARKETING": ["3.301 - Website/Redes Sociais","3.302 - Feiras e Eventos","3.303 - Propaganda e publicidade","3.304 - Brindes","3.305 - Patrocínios"],
-        "3.4 - DESPESAS FINANCEIRAS": ["3.401 - Estornos","3.402 - Juros sobre emprestimos","3.403 - Tarifas Bancárias","3.404 - Taxa de Vendas - Rede cartao Credito/Debito","3.405 - Juros Fornecedores","3.406 - Anuidade Cartão de Crédito"],
-        "4.1 - INVESTIMENTOS": ["4.401 - Móveis e Utensílios ","4.402 - Imóveis","4.403 - Máquinas e Equipamentos","4.404 - Sistema de Energia Solar","4.405 - Obras/Projeto Arquitetonico"],
-        "5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS": ["5.501 - Parcelamentos de Impostos","5.502 - Distribuição de Lucros","5.503 - Quitação Cheque Especial","5.504 - Multas Sobre Empréstimos Bancários","5.505 - Financiamento - Pronampe","5.506 - Movimentação Mútuo do Socio"],
-        "6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS": ["6.601 - Repasse de Valor - Médicos","6.602 - Repasse de Valor - Terapeutas"],
-    }
+    # ── Plano de contas padrão embutido (fallback) ────────────────────────────
+    PLANO_PADRAO = {"2.1 IMPOSTOS E TAXAS":["2.101 - Simples Nacional (DAS)","2.102 - IOF"],"2.2 DEDUCOES DE RECEITAS":["2.201 - Devolucao de vendas/Reembolso","2.202 - Descontos ","2.203 - Desembolso - Nota Fiscal"],"2.3 - CUSTO DIRETO COM PESSOAL (MOD)":["2.301 - Salario - Fonoaudiologia (C)","2.302 - Salario - Psicologa (C)","2.303 - Adiantamento (C)"],"2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)":["2.401 - Teste/Vacinas para Revenda","2.402 - Material de Consumo Clinico"],"3.1 DESPESAS ADMINISTRATIVAS":["3.301 - Água e Esgoto","3.302 - IPTU","3.303 - Aluguel","3.304 - Assessoria Financeira (BPO)","3.305 - Consultoria ","3.306 - Cartorio","3.307 - Energia Elétrica","3.308 - Material de Escritório ","3.309 - Confraternizacao/Coffee break","3.310 - Material de Copa e Cozinha","3.311 - Material de informatica","3.312 - Material de Limpeza","3.313 - Segurança e Monitoramento","3.314 - Contabilidade","3.315 - Telefone e Internet","3.316 - Aluguel de Maquinhinha - Adquirente de Cartão","3.317 - Manutenção de Equipamento ","3.318 - Softwares e Sistemas de Gestao","3.319 - Serviços de Terceiros - Montagem e instalações","3.320 - Pró-labore","3.321 - Manutenção de Informática (contrato)","3.322 - Certificados Digitais","3.323 - Frete/Transportadora","3.324 - Seguro do Imóvel","3.325 - Taxas de Adesao","3.326 - Manutencao e Conservacao","3.327 - Viagens - Passagem Aérea e outros","3.328 - Viagens - Serviço de Hospedagem","3.329 - Viagens - Transporte e Locomoção","3.330 - Alvará, Vistoria, Taxas Municipais","3.331 - Serviço de Limpeza "],"3.2 - DESPESAS COM PESSOAL":["3.301 - Salarios (D)","3.302 - 13º Salario (D)","3.303 - Férias (D)","3.304 - Vale Alimentacao (D)","3.305 - Vale Transporte (D)","3.306 - Uniforme (D)","3.307 - Cursos e Treinamentos (D)","3.308 - Exames Admissional/Demissional","3.309 - Vale Manicure (D)","3.310 - Gratificação (D)","3.311 - FGTS (D)","3.312 - INSS/IRRF (D)","3.313 - Estagiários (D)","3.314 - Rescisão"],"3.3 - DESPESAS DE VENDAS E MARKETING":["3.301 - Website/Redes Sociais","3.302 - Feiras e Eventos","3.303 - Propaganda e publicidade","3.304 - Brindes","3.305 - Patrocínios"],"3.4 - DESPESAS FINANCEIRAS":["3.401 - Estornos","3.402 - Juros sobre emprestimos","3.403 - Tarifas Bancárias","3.404 - Taxa de Vendas - Rede cartao Credito/Debito","3.405 - Juros Fornecedores","3.406 - Anuidade Cartão de Crédito"],"4.1 - INVESTIMENTOS":["4.401 - Móveis e Utensílios ","4.402 - Imóveis","4.403 - Máquinas e Equipamentos","4.404 - Sistema de Energia Solar","4.405 - Obras/Projeto Arquitetonico"],"5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS":["5.501 - Parcelamentos de Impostos","5.502 - Distribuição de Lucros","5.503 - Quitação Cheque Especial","5.504 - Multas Sobre Empréstimos Bancários","5.505 - Financiamento - Pronampe","5.506 - Movimentação Mútuo do Socio"],"6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS":["6.601 - Repasse de Valor - Médicos","6.602 - Repasse de Valor - Terapeutas"],"1.1 - RECEITAS OPERACIONAIS":["1.101 - Honorários Clínicos - Medicos","1.102 - Honorários Clínicos - Terapeutas","1.103 - Receita Vendas Cartao - Rede Credito e Debito","1.104 - Receita Recebimento Notas Fiscais","1.105 - Receita venda de Vacinas"],"1.2 - RECEITAS NÃO OPERACIONAIS":["1.201 - Exames e Teste - Laboratoriais ","1.202 - Venda de Ativos","1.203 - Reembolso de despesas","1.206 - Receitas Eventuais – Estagios"],"1.3 - DEVOLUÇÕES DE COMPRAS":["1.301 - Devoluções de Compra de Serviços","1.302 -  Devoluções de Compra de ativo"],"1.4 - RECEITAS FINANCEIRAS":["1.401 - Ajuste de Caixa","1.402 - Descontos obtidos","1.403 - Rendimentos de Aplicacoes","1.404 - Juros s/ duplicatas","1.405 - Multas"],"1.5 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS":["1.501 - Aporte de Capital","1.502 - Cheque Especial Utilizado/Emprestimos","1.503 - Mútuo de Sócios"],"1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS":["1.601 - Valores a Repassar - Médicos","1.602 - Valores a Repassar - Terapeutas"],"Ajuste de Caixa 2026 - Inicio":[]}
+
+    # ── Função para carregar plano de contas de arquivo ───────────────────────
+    def carregar_plano(arquivo=None):
+        """Lê arquivo Excel/CSV do plano de contas e retorna {cat: [subcats]}."""
+        if arquivo is None:
+            return PLANO_PADRAO.copy()
+        try:
+            if arquivo.name.endswith(".csv"):
+                df = pd.read_csv(arquivo)
+            else:
+                df = pd.read_excel(arquivo, header=0)
+            df.columns = [str(c).strip() for c in df.columns]
+            # Detecta colunas
+            col_cat = next((c for c in df.columns if "categ" in c.lower()), df.columns[0])
+            col_sub = next((c for c in df.columns if "sub" in c.lower()), df.columns[1] if len(df.columns) > 1 else None)
+            plano = {}
+            for _, row in df.iterrows():
+                cat = str(row[col_cat]).strip()
+                if cat == "nan" or not cat:
+                    continue
+                sub = str(row[col_sub]).strip() if col_sub and pd.notna(row[col_sub]) else ""
+                if cat not in plano:
+                    plano[cat] = []
+                if sub and sub != "nan":
+                    plano[cat].append(sub)
+            return plano if plano else PLANO_PADRAO.copy()
+        except Exception as e:
+            st.warning(f"Não foi possível ler o plano de contas: {e}. Usando o padrão embutido.")
+            return PLANO_PADRAO.copy()
 
     # ── Contatos embutidos ────────────────────────────────────────────────────
-    MEDICOS   = ["luciany","rossania","marilia","sarita","isadora","priscila","juliana","deodato","marcelo","marcello","airton","tarcizio","tarcízio","eulalio","raquel","nahara","paloma","sandra","carlos eduardo","isabela lima","ana camila","airton","gisa","gisa"]
-    TERAPEUTAS= ["andrezza","andressa","antonio clayton","marcia karina","jussara","dayrla","ceciane","wanderson","iasmim","katrine","norla","rosario","alessia","leticia","narllyanna","brenda","maria stheffany","sara micaela","vitorugo","rondinara","edilene","ana karolina"]
-    PESSOAL   = ["cacilene","kacilene","iara","jessica pinto","simone","vanderlene","gleicyelle","gleycyelle","maria cacilene"]
+    MEDICOS    = ["luciany","rossania","marilia","sarita","isadora","priscila","juliana","deodato","marcelo","marcello","airton","tarcizio","tarcízio","eulalio","raquel","nahara","paloma","sandra","carlos eduardo","isabela lima","ana camila","gisa"]
+    TERAPEUTAS = ["andrezza","andressa","antonio clayton","marcia karina","jussara","dayrla","ceciane","wanderson","iasmim","katrine","norla","rosario","alessia","leticia","narllyanna","brenda","maria stheffany","sara micaela","vitorugo","rondinara","edilene","ana karolina"]
+    PESSOAL    = ["cacilene","kacilene","iara","jessica pinto","simone","vanderlene","gleicyelle","gleycyelle","maria cacilene"]
 
-    # ── Regras fixas base ─────────────────────────────────────────────────────
+    # ── Regras base ───────────────────────────────────────────────────────────
     REGRAS_BASE = [
-        (["cx do dia","honorários","repasse","honorarios"], MEDICOS,    "E", "1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS", "1.601 - Valores a Repassar - Médicos"),
-        (["cx do dia","honorários","repasse","honorarios"], TERAPEUTAS, "E", "1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS", "1.602 - Valores a Repassar - Terapeutas"),
-        (["repasse","honorários","honorarios","cx do dia"], MEDICOS,    "S", "6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS",   "6.601 - Repasse de Valor - Médicos"),
-        (["repasse","honorários","honorarios","cx do dia","fusma"], TERAPEUTAS, "S", "6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS", "6.602 - Repasse de Valor - Terapeutas"),
-        (["folha","salario","salário"], PESSOAL+["cacilene","kacilene"], "S", "3.2 - DESPESAS COM PESSOAL", "3.301 - Salarios (D)"),
-        (["gratificação","gratificacao"], [], "S", "3.2 - DESPESAS COM PESSOAL", "3.310 - Gratificação (D)"),
-        (["agua","água","galão","galoes","galões","mineral"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.301 - Água e Esgoto"),
-        (["energia","luz"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.307 - Energia Elétrica"),
-        (["internet","telefone"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.315 - Telefone e Internet"),
-        (["aluguel"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.303 - Aluguel"),
-        (["limpeza","faxina"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.331 - Serviço de Limpeza "),
-        (["manutenção","manut","refriger","ar condic"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.317 - Manutenção de Equipamento "),
-        (["escritorio","impressora","tinta","papel","caneta"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.308 - Material de Escritório "),
-        (["copa","cozinha","cafe","café","marmita","lanche","restaurante","bolo","pipoca","toureiro","atacarejo"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.310 - Material de Copa e Cozinha"),
-        (["material de limpeza","detergente","sabao","sabão"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.312 - Material de Limpeza"),
-        (["segurança","monitoramento","camera","câmera"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.313 - Segurança e Monitoramento"),
-        (["marketing","publicidade","propaganda"], [], "S", "3.3 - DESPESAS DE VENDAS E MARKETING", "3.303 - Propaganda e publicidade"),
-        (["detetizacao","detetização","pest control"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.326 - Manutencao e Conservacao"),
-        (["armario","armário","movel","móvel","cadeira","mesa","gancho"], [], "S", "4.1 - INVESTIMENTOS", "4.401 - Móveis e Utensílios "),
-        (["iof","juros limite"], [], "S", "2.1 IMPOSTOS E TAXAS", "2.102 - IOF"),
-        (["simples","das "], [], "S", "2.1 IMPOSTOS E TAXAS", "2.101 - Simples Nacional (DAS)"),
-        (["vacina","teste","exame","laborat"], [], "S", "2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)", "2.401 - Teste/Vacinas para Revenda"),
-        (["ajuste","troco"], [], "E", "1.4 - RECEITAS FINANCEIRAS", "1.401 - Ajuste de Caixa"),
-        (["pró-labore","pro labore","prolabore"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.320 - Pró-labore"),
-        (["prestação de serviço","prestacao","bpo","financeiro"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.304 - Assessoria Financeira (BPO)"),
-        (["deposito","depósito","devolução","devolveu"], [], "S", "1.2 - RECEITAS NÃO OPERACIONAIS", "1.203 - Reembolso de despesas"),
-        (["retirada"], [], "S", "5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS", "5.502 - Distribuição de Lucros"),
-        (["montagem","instalação","instalacao","montar"], [], "S", "3.1 DESPESAS ADMINISTRATIVAS", "3.319 - Serviços de Terceiros - Montagem e instalações"),
+        (["cx do dia","honorários","repasse","honorarios"],MEDICOS,"E","1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS","1.601 - Valores a Repassar - Médicos"),
+        (["cx do dia","honorários","repasse","honorarios"],TERAPEUTAS,"E","1.6 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS","1.602 - Valores a Repassar - Terapeutas"),
+        (["repasse","honorários","honorarios","cx do dia"],MEDICOS,"S","6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS","6.601 - Repasse de Valor - Médicos"),
+        (["repasse","honorários","honorarios","cx do dia","fusma"],TERAPEUTAS,"S","6.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS","6.602 - Repasse de Valor - Terapeutas"),
+        (["folha","salario","salário"],PESSOAL+["cacilene","kacilene"],"S","3.2 - DESPESAS COM PESSOAL","3.301 - Salarios (D)"),
+        (["gratificação","gratificacao"],[],  "S","3.2 - DESPESAS COM PESSOAL","3.310 - Gratificação (D)"),
+        (["agua","água","galão","galoes","galões","mineral"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.301 - Água e Esgoto"),
+        (["energia","luz"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.307 - Energia Elétrica"),
+        (["internet","telefone"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.315 - Telefone e Internet"),
+        (["aluguel"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.303 - Aluguel"),
+        (["limpeza","faxina"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.331 - Serviço de Limpeza "),
+        (["manutenção","manut","refriger","ar condic"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.317 - Manutenção de Equipamento "),
+        (["escritorio","impressora","tinta","papel","caneta"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.308 - Material de Escritório "),
+        (["copa","cozinha","cafe","café","marmita","lanche","restaurante","bolo","pipoca","toureiro","atacarejo"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.310 - Material de Copa e Cozinha"),
+        (["material de limpeza","detergente","sabao","sabão"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.312 - Material de Limpeza"),
+        (["segurança","monitoramento","camera"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.313 - Segurança e Monitoramento"),
+        (["marketing","publicidade","propaganda"],[],"S","3.3 - DESPESAS DE VENDAS E MARKETING","3.303 - Propaganda e publicidade"),
+        (["detetizacao","detetização"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.326 - Manutencao e Conservacao"),
+        (["armario","armário","movel","móvel","cadeira","mesa","gancho"],[],"S","4.1 - INVESTIMENTOS","4.401 - Móveis e Utensílios "),
+        (["iof","juros limite"],[],"S","2.1 IMPOSTOS E TAXAS","2.102 - IOF"),
+        (["simples","das "],[],"S","2.1 IMPOSTOS E TAXAS","2.101 - Simples Nacional (DAS)"),
+        (["vacina","teste","exame","laborat"],[],"S","2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)","2.401 - Teste/Vacinas para Revenda"),
+        (["ajuste","troco"],[],"E","1.4 - RECEITAS FINANCEIRAS","1.401 - Ajuste de Caixa"),
+        (["pró-labore","pro labore","prolabore"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.320 - Pró-labore"),
+        (["prestação de serviço","prestacao","bpo"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.304 - Assessoria Financeira (BPO)"),
+        (["devolução","devolveu","deposito","depósito"],[],"S","1.2 - RECEITAS NÃO OPERACIONAIS","1.203 - Reembolso de despesas"),
+        (["retirada"],[],"S","5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS","5.502 - Distribuição de Lucros"),
+        (["montagem","instalação","instalacao","montar"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.319 - Serviços de Terceiros - Montagem e instalações"),
     ]
 
-    # ── Carregar/salvar regras aprendidas no storage persistente ─────────────
+    # ── Storage persistente ───────────────────────────────────────────────────
     def carregar_regras_aprendidas():
         try:
             dados = st.session_state.get("_regras_storage", None)
@@ -1082,8 +1075,6 @@ elif page == "classificador":
         c = str(contato).lower().strip()
         d = str(descricao).lower().strip()
         t = tipo_mov
-
-        # 1. Regras aprendidas têm PRIORIDADE MÁXIMA
         for r in regras_aprendidas:
             if r.get("contato","") and r["contato"].lower() in c:
                 if r.get("mov","") in ("", t):
@@ -1092,8 +1083,6 @@ elif page == "classificador":
                 if r["palavra"].lower() in d or r["palavra"].lower() in c:
                     if r.get("mov","") in ("", t):
                         return r["categoria"], r["subcategoria"], "Aprendida"
-
-        # 2. Regras base
         for palavras_desc, palavras_contato, mov, cat, sub in REGRAS_BASE:
             if mov != "" and mov != t:
                 continue
@@ -1107,7 +1096,6 @@ elif page == "classificador":
             else:
                 if desc_match:
                     return cat, sub, "Alta"
-
         return "", "", "Manual"
 
     def gerar_ofx(df_class, conta_nome="Caixinha"):
@@ -1131,27 +1119,108 @@ elif page == "classificador":
             trntype = "CREDIT" if valor >= 0 else "DEBIT"
             memo    = str(row.get("Descricao",""))[:60].replace("<","").replace(">","")
             contato = str(row.get("Contato",""))[:40].replace("<","").replace(">","")
-            linhas += [f"<STMTTRN>",f"<TRNTYPE>{trntype}",f"<DTPOSTED>{dt_str}",
+            linhas += ["<STMTTRN>",f"<TRNTYPE>{trntype}",f"<DTPOSTED>{dt_str}",
                        f"<TRNAMT>{valor:.2f}",f"<FITID>CX{dt_str}{i:04d}",
-                       f"<NAME>{contato}",f"<MEMO>{memo}","</STMTTRN>"]
+                       f"<n>{contato}",f"<MEMO>{memo}","</STMTTRN>"]
         linhas += ["</BANKTRANLIST>","</STMTRS>","</STMTTRNRS>","</BANKMSGSRSV1>","</OFX>"]
         return "\n".join(linhas)
 
-    import json as json_mod
-
     regras_aprendidas = carregar_regras_aprendidas()
 
-    # ── TABS: Classificar | Gerenciar Regras ─────────────────────────────────
-    tab_class, tab_regras = st.tabs(["🤖  Classificar", "📚  Regras Aprendidas"])
+    # ── TABS ──────────────────────────────────────────────────────────────────
+    tab_class, tab_plano, tab_regras = st.tabs(["🤖  Classificar", "📋  Plano de Contas", "📚  Regras Aprendidas"])
 
+    # ════════════════════════════
+    with tab_plano:
+        st.markdown('<div class="page-sub">Visualize, atualize ou adicione novas categorias e subcategorias ao plano de contas.</div>', unsafe_allow_html=True)
+
+        st.markdown("**Carregar plano de contas atualizado**")
+        st.caption("Envie o arquivo exportado do Meu Dinheiro (Excel ou CSV). Deixe vazio para usar o padrão embutido.")
+        f_plano = st.file_uploader(" ", type=["xlsx","xls","csv"], key="plano_file", label_visibility="collapsed")
+
+        plano_atual = carregar_plano(f_plano)
+        if f_plano:
+            st.success(f"Plano carregado: {len(plano_atual)} categorias, {sum(len(v) for v in plano_atual.values())} subcategorias.")
+            st.session_state["_plano_carregado"] = json.dumps(plano_atual, ensure_ascii=False)
+        elif "_plano_carregado" in st.session_state:
+            plano_atual = json.loads(st.session_state["_plano_carregado"])
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin-bottom:.75rem;">{len(plano_atual)} categorias · {sum(len(v) for v in plano_atual.values())} subcategorias</div>', unsafe_allow_html=True)
+
+        for cat, subs in plano_atual.items():
+            with st.expander(f"**{cat}** — {len(subs)} subcategorias"):
+                if subs:
+                    for s in subs:
+                        st.markdown(f"&nbsp;&nbsp;&nbsp;· {s}")
+                else:
+                    st.caption("Sem subcategorias")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("**Adicionar nova categoria ou subcategoria**")
+        na1, na2, na3 = st.columns(3)
+        with na1:
+            nova_cat = st.selectbox("Categoria", ["— Nova categoria —"] + list(plano_atual.keys()), key="nova_cat_sel")
+        with na2:
+            if nova_cat == "— Nova categoria —":
+                nova_cat_nome = st.text_input("Nome da nova categoria", placeholder="Ex: 7.1 - NOVA CATEGORIA", key="nova_cat_nome")
+            else:
+                nova_cat_nome = nova_cat
+        with na3:
+            nova_sub = st.text_input("Nova subcategoria", placeholder="Ex: 7.101 - Descrição", key="nova_sub_nome")
+
+        if st.button("➕  Adicionar ao plano", key="btn_add_plano"):
+            if nova_cat_nome and nova_cat_nome != "— Nova categoria —":
+                if "_plano_carregado" in st.session_state:
+                    plano_edit = json.loads(st.session_state["_plano_carregado"])
+                else:
+                    plano_edit = PLANO_PADRAO.copy()
+                if nova_cat_nome not in plano_edit:
+                    plano_edit[nova_cat_nome] = []
+                if nova_sub and nova_sub not in plano_edit[nova_cat_nome]:
+                    plano_edit[nova_cat_nome].append(nova_sub)
+                st.session_state["_plano_carregado"] = json.dumps(plano_edit, ensure_ascii=False)
+                st.success(f"Adicionado: **{nova_cat_nome}** → {nova_sub if nova_sub else '(sem subcategoria)'}")
+                st.rerun()
+            else:
+                st.warning("Informe o nome da categoria.")
+
+        # Download plano atualizado
+        if "_plano_carregado" in st.session_state:
+            plano_dl = json.loads(st.session_state["_plano_carregado"])
+            rows_dl = []
+            for cat, subs in plano_dl.items():
+                if subs:
+                    for s in subs:
+                        rows_dl.append({"Categoria": cat, "Subcategoria": s})
+                else:
+                    rows_dl.append({"Categoria": cat, "Subcategoria": ""})
+            df_plano_dl = pd.DataFrame(rows_dl)
+            st.download_button(
+                "⬇️  Baixar plano atualizado (Excel)",
+                data=to_excel_bytes(df_plano_dl),
+                file_name=f"plano_contas_crs_{datetime.today().strftime('%d%m%Y')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+
+    # ════════════════════════════
     with tab_class:
-        # Upload
+        # Carrega plano vigente
+        if "_plano_carregado" in st.session_state:
+            PLANO_CATS_DIN  = list(json.loads(st.session_state["_plano_carregado"]).keys())
+            PLANO_SUBS_DIN  = json.loads(st.session_state["_plano_carregado"])
+        else:
+            PLANO_CATS_DIN  = list(PLANO_PADRAO.keys())
+            PLANO_SUBS_DIN  = PLANO_PADRAO
+
+        subs_flat = [""] + sorted(set(s for lst in PLANO_SUBS_DIN.values() for s in lst))
+
         col_u1, col_u2 = st.columns(2)
         with col_u1:
             st.markdown("**Planilha da Caixinha (Excel)**")
             f_caixa = st.file_uploader(" ", type=["xlsx","xls"], key="class_file", label_visibility="collapsed")
         with col_u2:
-            st.markdown("**Cadastro de Contatos (opcional — atualiza o embutido)**")
+            st.markdown("**Cadastro de Contatos (opcional)**")
             f_contatos = st.file_uploader(" ", type=["xlsx","xls"], key="class_contatos", label_visibility="collapsed")
 
         if f_contatos:
@@ -1230,7 +1299,6 @@ elif page == "classificador":
 
         df_class = st.session_state["df_classificado"].copy()
 
-        # Métricas
         alta   = (df_class["Confiança"]=="Alta").sum()
         aprend = (df_class["Confiança"]=="Aprendida").sum()
         media  = (df_class["Confiança"]=="Média").sum()
@@ -1249,19 +1317,15 @@ elif page == "classificador":
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""
         <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:#C9A84C;">
-            ✏️ Edite diretamente as colunas <strong>Categoria</strong> e <strong>SubCategoria</strong> na tabela abaixo.
-            Após corrigir, clique em <strong>"Salvar correções e criar regras"</strong> para aprender automaticamente.
+            ✏️ Edite <strong>Categoria</strong> e <strong>SubCategoria</strong> diretamente na tabela.
+            Clique em <strong>Salvar correções</strong> para criar regras automáticas para os próximos meses.
         </div>""", unsafe_allow_html=True)
-
-        # Tabela editável
-        cats_opts  = PLANO_CATS
-        subs_flat  = [""] + sorted(set(s for lst in PLANO_SUBCATS.values() for s in lst))
 
         df_edit = st.data_editor(
             df_class,
             column_config={
-                "Categoria":    st.column_config.SelectboxColumn("Categoria",    options=cats_opts,  width="large"),
-                "SubCategoria": st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,  width="large"),
+                "Categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_DIN, width="large"),
+                "SubCategoria": st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,      width="large"),
                 "Confiança":    st.column_config.TextColumn("Confiança", disabled=True, width="small"),
                 "Contato":      st.column_config.TextColumn("Contato",   disabled=True),
                 "Descricao":    st.column_config.TextColumn("Descrição", disabled=True),
@@ -1269,150 +1333,100 @@ elif page == "classificador":
                 "Entrada":      st.column_config.TextColumn("Entrada",   disabled=True, width="small"),
                 "Saida":        st.column_config.TextColumn("Saída",     disabled=True, width="small"),
             },
-            use_container_width=True,
-            hide_index=True,
-            key="editor_class",
+            use_container_width=True, hide_index=True, key="editor_class",
         )
 
-        # Salvar correções e gerar regras
-        col_sv, col_exp = st.columns([1,2])
+        col_sv, _ = st.columns([1,2])
         with col_sv:
             if st.button("💾  Salvar correções e criar regras", key="btn_salvar_regras", use_container_width=True):
                 novas_regras = list(regras_aprendidas)
                 n_novas = 0
                 orig = st.session_state["df_classificado"]
-
                 for i, row in df_edit.iterrows():
                     orig_cat = orig.loc[i,"Categoria"] if i < len(orig) else ""
-                    orig_sub = orig.loc[i,"SubCategoria"] if i < len(orig) else ""
                     new_cat  = row.get("Categoria","")
                     new_sub  = row.get("SubCategoria","")
-
-                    # Detecta mudança real
-                    if (new_cat != orig_cat or new_sub != orig_sub) and new_cat:
+                    if (new_cat != orig_cat) and new_cat:
                         contato   = str(row.get("Contato","")).strip()
                         descricao = str(row.get("Descricao","")).strip()
                         entrada   = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
                         saida     = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
                         mov       = "E" if (pd.notna(entrada) and entrada > 0) else "S"
-
-                        # Cria regra por contato (se contato específico)
                         if contato and len(contato) > 2:
-                            regra_contato = {
-                                "tipo": "contato",
-                                "contato": contato.lower(),
-                                "palavra": "",
-                                "mov": mov,
-                                "categoria": new_cat,
-                                "subcategoria": new_sub,
-                                "origem": f"{aba_sel} — linha {i+1}",
-                            }
-                            # Evita duplicata
-                            ja_existe = any(
-                                r.get("contato","").lower() == regra_contato["contato"] and
-                                r.get("mov","") == mov
-                                for r in novas_regras
-                            )
-                            if not ja_existe:
-                                novas_regras.insert(0, regra_contato)
-                                n_novas += 1
-
-                        # Cria regra por palavra-chave da descrição
+                            r = {"tipo":"contato","contato":contato.lower(),"palavra":"","mov":mov,"categoria":new_cat,"subcategoria":new_sub,"origem":f"{aba_sel}"}
+                            if not any(x.get("contato","").lower()==r["contato"] and x.get("mov","")==mov for x in novas_regras):
+                                novas_regras.insert(0, r); n_novas += 1
                         palavras = [p for p in descricao.lower().split() if len(p) > 4]
                         if palavras:
                             chave = palavras[0]
-                            regra_desc = {
-                                "tipo": "descricao",
-                                "contato": "",
-                                "palavra": chave,
-                                "mov": mov,
-                                "categoria": new_cat,
-                                "subcategoria": new_sub,
-                                "origem": f"{aba_sel} — linha {i+1}",
-                            }
-                            ja_existe_d = any(
-                                r.get("palavra","").lower() == chave and r.get("mov","") == mov
-                                for r in novas_regras
-                            )
-                            if not ja_existe_d:
-                                novas_regras.insert(0, regra_desc)
-                                n_novas += 1
-
+                            r2 = {"tipo":"descricao","contato":"","palavra":chave,"mov":mov,"categoria":new_cat,"subcategoria":new_sub,"origem":f"{aba_sel}"}
+                            if not any(x.get("palavra","").lower()==chave and x.get("mov","")==mov for x in novas_regras):
+                                novas_regras.insert(0, r2); n_novas += 1
                 salvar_regras_aprendidas(novas_regras)
                 st.session_state["df_classificado"] = df_edit.copy()
-                st.success(f"✅ {n_novas} novas regras criadas e salvas! Próxima classificação já usará essas regras.")
+                st.success(f"✅ {n_novas} novas regras criadas!")
                 st.rerun()
 
-        # Downloads
         st.markdown("---")
         nome_base = f"caixinha_{aba_sel.replace(' ','_').replace('$','').strip()}_{datetime.today().strftime('%d%m%Y')}"
         dl1, dl2, dl3 = st.columns(3)
-
         with dl1:
             st.markdown("**CSV — Meu Dinheiro**")
             csv_cols = [c for c in ["Data","Contato","Descricao","Entrada","Saida","Categoria","SubCategoria"] if c in df_edit.columns]
             csv_df = df_edit[csv_cols].copy()
             csv_df.columns = ["Data","Contato/Fornecedor","Descrição","Entrada","Saída","Categoria","Subcategoria"][:len(csv_cols)]
-            st.download_button("⬇️  Baixar CSV", data=csv_df.to_csv(index=False,sep=";",encoding="utf-8-sig").encode("utf-8-sig"),
-                file_name=f"{nome_base}.csv", mime="text/csv")
-
+            st.download_button("⬇️  Baixar CSV", data=csv_df.to_csv(index=False,sep=";",encoding="utf-8-sig").encode("utf-8-sig"), file_name=f"{nome_base}.csv", mime="text/csv")
         with dl2:
             st.markdown("**Excel — revisão**")
-            st.download_button("⬇️  Baixar Excel", data=to_excel_bytes(df_edit),
-                file_name=f"{nome_base}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
+            st.download_button("⬇️  Baixar Excel", data=to_excel_bytes(df_edit), file_name=f"{nome_base}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         with dl3:
             st.markdown("**OFX — extrato bancário**")
-            st.download_button("⬇️  Baixar OFX", data=gerar_ofx(df_edit, conta_nome=aba_sel).encode("utf-8"),
-                file_name=f"{nome_base}.ofx", mime="application/octet-stream")
+            st.download_button("⬇️  Baixar OFX", data=gerar_ofx(df_edit, conta_nome=aba_sel).encode("utf-8"), file_name=f"{nome_base}.ofx", mime="application/octet-stream")
 
-    # ── TAB: Gerenciar Regras Aprendidas ─────────────────────────────────────
+    # ════════════════════════════
     with tab_regras:
-        st.markdown('<div class="page-sub">Regras criadas a partir das suas correções — aplicadas com prioridade máxima.</div>', unsafe_allow_html=True)
-
+        st.markdown('<div class="page-sub">Regras criadas pelas suas correções — prioridade máxima na classificação.</div>', unsafe_allow_html=True)
         regras_atual = carregar_regras_aprendidas()
 
+        if "_plano_carregado" in st.session_state:
+            PLANO_CATS_R = list(json.loads(st.session_state["_plano_carregado"]).keys())
+            subs_flat_r  = [""] + sorted(set(s for lst in json.loads(st.session_state["_plano_carregado"]).values() for s in lst))
+        else:
+            PLANO_CATS_R = list(PLANO_PADRAO.keys())
+            subs_flat_r  = [""] + sorted(set(s for lst in PLANO_PADRAO.values() for s in lst))
+
         if not regras_atual:
-            st.info("Nenhuma regra aprendida ainda. Corrija classificações na aba Classificar e clique em Salvar.")
+            st.info("Nenhuma regra aprendida ainda. Corrija classificações na aba Classificar e salve.")
         else:
             st.markdown(f'<div style="font-size:0.82rem;color:#C9A84C;margin-bottom:1rem;">{len(regras_atual)} regras salvas</div>', unsafe_allow_html=True)
-
             df_regras = pd.DataFrame(regras_atual)
             df_regras_edit = st.data_editor(
                 df_regras,
                 column_config={
-                    "tipo":        st.column_config.TextColumn("Tipo",       disabled=True, width="small"),
-                    "contato":     st.column_config.TextColumn("Contato",    width="medium"),
-                    "palavra":     st.column_config.TextColumn("Palavra-chave", width="medium"),
-                    "mov":         st.column_config.SelectboxColumn("Mov", options=["E","S",""], width="small"),
-                    "categoria":   st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS, width="large"),
-                    "subcategoria":st.column_config.SelectboxColumn("Subcategoria", options=[""] + sorted(set(s for lst in PLANO_SUBCATS.values() for s in lst)), width="large"),
-                    "origem":      st.column_config.TextColumn("Origem", disabled=True, width="medium"),
+                    "tipo":         st.column_config.TextColumn("Tipo",          disabled=True, width="small"),
+                    "contato":      st.column_config.TextColumn("Contato",       width="medium"),
+                    "palavra":      st.column_config.TextColumn("Palavra-chave", width="medium"),
+                    "mov":          st.column_config.SelectboxColumn("Mov",      options=["E","S",""], width="small"),
+                    "categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_R,  width="large"),
+                    "subcategoria": st.column_config.SelectboxColumn("Subcategoria", options=subs_flat_r,   width="large"),
+                    "origem":       st.column_config.TextColumn("Origem",        disabled=True, width="medium"),
                 },
-                num_rows="dynamic",
-                use_container_width=True,
-                hide_index=True,
-                key="editor_regras",
+                num_rows="dynamic", use_container_width=True, hide_index=True, key="editor_regras",
             )
-
-            col_r1, col_r2, col_r3 = st.columns(3)
-            with col_r1:
-                if st.button("💾  Salvar alterações nas regras", key="btn_salvar_regras2", use_container_width=True):
+            r1, r2, r3 = st.columns(3)
+            with r1:
+                if st.button("💾  Salvar alterações", key="btn_salvar_r2", use_container_width=True):
                     salvar_regras_aprendidas(df_regras_edit.to_dict("records"))
-                    st.success("Regras salvas!")
-                    st.rerun()
-            with col_r2:
-                regras_json = json_mod.dumps(regras_atual, ensure_ascii=False, indent=2)
-                st.download_button("⬇️  Exportar regras JSON", data=regras_json.encode("utf-8"),
+                    st.success("Regras salvas!"); st.rerun()
+            with r2:
+                st.download_button("⬇️  Exportar JSON", data=json.dumps(regras_atual, ensure_ascii=False, indent=2).encode("utf-8"),
                     file_name="regras_caixinha.json", mime="application/json", use_container_width=True)
-            with col_r3:
-                if st.button("🗑️  Apagar todas as regras", key="btn_del_regras", use_container_width=True):
+            with r3:
+                if st.button("🗑️  Apagar todas", key="btn_del_r", use_container_width=True):
                     salvar_regras_aprendidas([])
-                    st.warning("Todas as regras aprendidas foram apagadas.")
-                    st.rerun()
+                    st.warning("Regras apagadas."); st.rerun()
 
 
-# 5. SERVIÇOS & CONTATO
 # ════════════════════════════════════════════════════════════════════════════
 elif page == "servicos":
     st.markdown('<div class="page-title">Serviços & Contato</div>', unsafe_allow_html=True)
