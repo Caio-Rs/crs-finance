@@ -332,14 +332,28 @@ def parse_ofx(content: str) -> pd.DataFrame:
 
 
 def load_file(uploaded) -> pd.DataFrame:
+    """Lê CSV, Excel ou OFX com detecção automática de encoding."""
     name = uploaded.name.lower()
     if name.endswith(".csv"):
-        return pd.read_csv(uploaded)
+        raw = uploaded.read()
+        for enc in ["utf-8", "utf-8-sig", "latin-1", "iso-8859-1", "cp1252"]:
+            try:
+                import io as _io
+                return pd.read_csv(_io.BytesIO(raw), encoding=enc, sep=None, engine="python")
+            except Exception:
+                continue
+        import io as _io
+        return pd.read_csv(_io.BytesIO(raw), encoding="latin-1", sep=None, engine="python", on_bad_lines="skip")
     elif name.endswith((".xlsx", ".xls")):
         return pd.read_excel(uploaded)
     elif name.endswith((".ofx", ".ofc", ".txt")):
-        content = uploaded.read().decode("utf-8", errors="replace")
-        return parse_ofx(content)
+        raw = uploaded.read()
+        for enc in ["utf-8", "latin-1", "iso-8859-1", "cp1252"]:
+            try:
+                return parse_ofx(raw.decode(enc))
+            except Exception:
+                continue
+        return parse_ofx(raw.decode("utf-8", errors="replace"))
     return pd.DataFrame()
 
 
