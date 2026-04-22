@@ -203,11 +203,62 @@ html, body, [class*="css"], .stApp {
 .badge-warn { background:#422006; color:#fcd34d; padding:3px 10px; border-radius:99px; font-size:0.75rem; font-weight:600; }
 .badge-info { background:#1e3a5f; color:#93c5fd; padding:3px 10px; border-radius:99px; font-size:0.75rem; font-weight:600; }
 
-/* ── Tabela ── */
+/* ── Tabela e Data Editor ── */
 .stDataFrame {
     border: 0.5px solid #253550 !important;
     border-radius: 10px !important;
     background: #162236 !important;
+}
+
+/* Data editor — tema escuro completo */
+[data-testid="stDataFrameResizable"] {
+    background: #162236 !important;
+    border: 0.5px solid #253550 !important;
+    border-radius: 10px !important;
+}
+[data-testid="stDataFrameResizable"] [role="gridcell"] {
+    color: #e2e8f0 !important;
+    background: #162236 !important;
+}
+[data-testid="stDataFrameResizable"] [role="gridcell"]:hover {
+    background: #1B2A4A !important;
+}
+[data-testid="stDataFrameResizable"] [role="columnheader"] {
+    background: #1B2A4A !important;
+    color: #C9A84C !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.05em !important;
+}
+[data-testid="stDataFrameResizable"] [aria-selected="true"] {
+    background: rgba(201,168,76,0.15) !important;
+}
+[data-testid="stDataFrameResizable"] input,
+[data-testid="stDataFrameResizable"] [role="combobox"] {
+    background: #1B2A4A !important;
+    color: #e2e8f0 !important;
+    border-color: #C9A84C !important;
+}
+
+/* Dropdown popup do SelectboxColumn */
+[data-baseweb="popover"],
+[data-baseweb="popover"] * {
+    background: #1B2A4A !important;
+    color: #e2e8f0 !important;
+}
+[data-baseweb="popover"] {
+    border: 0.5px solid #C9A84C !important;
+    border-radius: 8px !important;
+}
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="menu"] li:hover {
+    background: rgba(201,168,76,0.2) !important;
+    color: #C9A84C !important;
+}
+[data-baseweb="menu"],
+[data-baseweb="menu"] li {
+    background: #1B2A4A !important;
+    color: #e2e8f0 !important;
+    border-color: #253550 !important;
 }
 
 /* ── Inputs ── */
