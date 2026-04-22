@@ -1702,8 +1702,9 @@ elif page == "classificador":
 
         col_u1, col_u2 = st.columns(2)
         with col_u1:
-            st.markdown("**Planilha da Caixinha (Excel)**")
-            f_caixa = st.file_uploader(" ", type=["xlsx","xls"], key="class_file", label_visibility="collapsed")
+            st.markdown("**Planilha da Caixinha (Excel ou CSV)**")
+            st.caption("Excel com abas mensais · ou CSV exportado diretamente")
+            f_caixa = st.file_uploader(" ", type=["xlsx","xls","csv"], key="class_file", label_visibility="collapsed")
         with col_u2:
             st.markdown("**Cadastro de Contatos (opcional)**")
             f_contatos = st.file_uploader(" ", type=["xlsx","xls"], key="class_contatos", label_visibility="collapsed")
@@ -1723,25 +1724,18 @@ elif page == "classificador":
             st.markdown("""
             <div class="section-card" style="text-align:center;padding:2rem;margin-top:1rem;">
                 <div style="font-size:2rem;margin-bottom:.5rem;">🤖</div>
-                <div style="color:#556688;font-size:0.85rem;">Carregue a planilha Excel da Caixinha para iniciar</div>
+                <div style="color:#556688;font-size:0.85rem;">Carregue a planilha Excel ou CSV da Caixinha para iniciar</div>
             </div>""", unsafe_allow_html=True)
             st.stop()
 
-        try:
-            xl_caixa = pd.ExcelFile(f_caixa)
-        except Exception as e:
-            st.error(f"Erro ao ler arquivo: {e}")
-            st.stop()
-
-        abas_cx = [a for a in xl_caixa.sheet_names if "caixa" in a.lower()]
-        aba_sel = st.selectbox("Selecione o mês", abas_cx if abas_cx else xl_caixa.sheet_names, key="class_aba")
-
-        try:
-            df_raw = xl_caixa.parse(aba_sel, header=None)
-            header_row = 1
+        def parse_caixinha_df(df_raw):
+            """Normaliza colunas do DataFrame da Caixinha (Excel ou CSV)."""
+            # Detecta linha de cabeçalho buscando pela palavra DATA
+            header_row = 0
             for i, row in df_raw.iterrows():
                 if "DATA" in [str(v).upper().strip() for v in row.values]:
-                    header_row = i; break
+                    header_row = i
+                    break
             df_raw.columns = df_raw.iloc[header_row]
             df_raw = df_raw.iloc[header_row+1:].reset_index(drop=True)
             df_raw.columns = [str(c).strip() for c in df_raw.columns]
@@ -1752,19 +1746,81 @@ elif page == "classificador":
                 elif "CONTATO" in cu or "FORNEC" in cu: col_map[c] = "Contato"
                 elif "DESCRI" in cu: col_map[c] = "Descricao"
                 elif "ENTRADA" in cu: col_map[c] = "Entrada"
-                elif "SA" in cu and "DO" not in cu and len(c)<10: col_map[c] = "Saida"
+                elif "SA" in cu and "DO" not in cu and len(c) < 10: col_map[c] = "Saida"
                 elif "SALDO" in cu: col_map[c] = "Saldo"
             df_raw = df_raw.rename(columns=col_map)
             needed = [c for c in ["Data","Contato","Descricao","Entrada","Saida"] if c in df_raw.columns]
             df_work = df_raw[needed].copy()
-            df_work = df_work[df_work["Data"].notna() & (df_work["Data"].astype(str).str.strip() != "") & (df_work["Data"].astype(str) != "nan")]
-            df_work["Data"] = pd.to_datetime(df_work["Data"], dayfirst=True, errors="coerce").dt.strftime("%d/%m/%Y")
-            df_work = df_work[df_work["Data"].notna()].reset_index(drop=True)
-        except Exception as e:
-            st.error(f"Erro ao ler aba: {e}")
-            st.stop()
+            df_work = df_work[
+                df_work["Data"].notna() &
+                (df_work["Data"].astype(str).str.strip() != "") &
+                (df_work["Data"].astype(str) != "nan")
+            ]
+            df_work["Data"] = pd.to_datetime(
+                df_work["Data"], dayfirst=True, errors="coerce"
+            ).dt.strftime("%d/%m/%Y")
+            return df_work[df_work["Data"].notna()].reset_index(drop=True)
 
-        st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin:.5rem 0 1rem;">Aba: <strong style="color:#C9A84C;">{aba_sel}</strong> · {len(df_work)} lançamentos</div>', unsafe_allow_html=True)
+        # ── Carrega Excel ou CSV ───────────────────────────────────────────
+        nome_arquivo = f_caixa.name.lower()
+        aba_sel = None
+
+        if nome_arquivo.endswith(".csv"):
+            # CSV — lê com detecção de encoding e separador
+            raw_bytes = f_caixa.read()
+            df_csv_raw = None
+            for enc in ["latin-1","cp1252","iso-8859-1","utf-8","utf-8-sig"]:
+                for sep in [";",",","\t"]:
+                    try:
+                        import io as _io
+                        df_csv_raw = pd.read_csv(
+                            _io.BytesIO(raw_bytes), encoding=enc, sep=sep,
+                            header=None, on_bad_lines="skip", engine="python"
+                        )
+                        if len(df_csv_raw.columns) > 3:
+                            break
+                    except Exception:
+                        continue
+                if df_csv_raw is not None and len(df_csv_raw.columns) > 3:
+                    break
+
+            if df_csv_raw is None or df_csv_raw.empty:
+                st.error("Não foi possível ler o CSV. Verifique o formato.")
+                st.stop()
+
+            # Nome do arquivo sem extensão como identificador
+            aba_sel = f_caixa.name.replace(".csv","").replace("_"," ")
+            try:
+                df_work = parse_caixinha_df(df_csv_raw)
+            except Exception as e:
+                st.error(f"Erro ao processar CSV: {e}")
+                st.stop()
+
+        else:
+            # Excel — seleciona aba
+            try:
+                xl_caixa = pd.ExcelFile(f_caixa)
+            except Exception as e:
+                st.error(f"Erro ao ler arquivo: {e}")
+                st.stop()
+
+            abas_cx = [a for a in xl_caixa.sheet_names if "caixa" in a.lower()]
+            aba_sel = st.selectbox(
+                "Selecione o mês", abas_cx if abas_cx else xl_caixa.sheet_names, key="class_aba"
+            )
+            try:
+                df_raw = xl_caixa.parse(aba_sel, header=None)
+                df_work = parse_caixinha_df(df_raw)
+            except Exception as e:
+                st.error(f"Erro ao ler aba: {e}")
+                st.stop()
+
+        st.markdown(
+            f'<div style="font-size:0.82rem;color:#8899BB;margin:.5rem 0 1rem;">' +
+            (f'Arquivo: <strong style="color:#C9A84C;">{aba_sel}</strong>' if nome_arquivo.endswith(".csv") else f'Aba: <strong style="color:#C9A84C;">{aba_sel}</strong>') +
+            f' · {len(df_work)} lançamentos</div>',
+            unsafe_allow_html=True
+        )
 
         if st.button("🤖  Classificar Automaticamente", key="btn_class"):
             cats, subs, confs = [], [], []
