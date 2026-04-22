@@ -210,18 +210,13 @@ html, body, [class*="css"], .stApp {
     background: #162236 !important;
 }
 
-/* Data editor — tema escuro completo */
+/* Data editor — células com tema escuro */
 [data-testid="stDataFrameResizable"] {
-    background: #162236 !important;
     border: 0.5px solid #253550 !important;
     border-radius: 10px !important;
 }
 [data-testid="stDataFrameResizable"] [role="gridcell"] {
     color: #e2e8f0 !important;
-    background: #162236 !important;
-}
-[data-testid="stDataFrameResizable"] [role="gridcell"]:hover {
-    background: #1B2A4A !important;
 }
 [data-testid="stDataFrameResizable"] [role="columnheader"] {
     background: #1B2A4A !important;
@@ -229,36 +224,49 @@ html, body, [class*="css"], .stApp {
     font-size: 0.72rem !important;
     letter-spacing: 0.05em !important;
 }
-[data-testid="stDataFrameResizable"] [aria-selected="true"] {
-    background: rgba(201,168,76,0.15) !important;
-}
-[data-testid="stDataFrameResizable"] input,
-[data-testid="stDataFrameResizable"] [role="combobox"] {
-    background: #1B2A4A !important;
-    color: #e2e8f0 !important;
-    border-color: #C9A84C !important;
-}
 
-/* Dropdown popup do SelectboxColumn */
-[data-baseweb="popover"],
-[data-baseweb="popover"] * {
-    background: #1B2A4A !important;
-    color: #e2e8f0 !important;
-}
+/* Popup do SelectboxColumn — tema CLARO para garantir legibilidade */
+/* O portal do Streamlit é renderizado fora do DOM principal */
 [data-baseweb="popover"] {
-    border: 0.5px solid #C9A84C !important;
+    background-color: #ffffff !important;
+    border: 1px solid #C9A84C !important;
     border-radius: 8px !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
 }
-[data-baseweb="popover"] [role="option"]:hover,
-[data-baseweb="menu"] li:hover {
-    background: rgba(201,168,76,0.2) !important;
+[data-baseweb="popover"] * {
+    background-color: #ffffff !important;
+    color: #1B2A4A !important;
+}
+[data-baseweb="popover"] [role="option"] {
+    color: #1B2A4A !important;
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+}
+[data-baseweb="popover"] [role="option"]:hover {
+    background-color: #f0f5ff !important;
+    color: #1B2A4A !important;
+}
+[data-baseweb="popover"] [aria-selected="true"] {
+    background-color: #1B2A4A !important;
     color: #C9A84C !important;
 }
-[data-baseweb="menu"],
+[data-baseweb="menu"] {
+    background-color: #ffffff !important;
+}
 [data-baseweb="menu"] li {
-    background: #1B2A4A !important;
-    color: #e2e8f0 !important;
-    border-color: #253550 !important;
+    color: #1B2A4A !important;
+    background-color: #ffffff !important;
+}
+[data-baseweb="menu"] li:hover {
+    background-color: #f0f5ff !important;
+    color: #1B2A4A !important;
+}
+/* Input de busca dentro do popup */
+[data-baseweb="popover"] input {
+    background-color: #f5f7fa !important;
+    color: #1B2A4A !important;
+    border: 1px solid #d4dde6 !important;
+    border-radius: 6px !important;
 }
 
 /* ── Inputs ── */
