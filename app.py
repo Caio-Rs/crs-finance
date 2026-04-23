@@ -225,48 +225,62 @@ html, body, [class*="css"], .stApp {
     letter-spacing: 0.05em !important;
 }
 
-/* Popup do SelectboxColumn — tema CLARO para garantir legibilidade */
-/* O portal do Streamlit é renderizado fora do DOM principal */
+/* Popup do SelectboxColumn — tema CLARO forçado */
 [data-baseweb="popover"] {
     background-color: #ffffff !important;
-    border: 1px solid #C9A84C !important;
+    border: 2px solid #1B2A4A !important;
     border-radius: 8px !important;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
 }
-[data-baseweb="popover"] * {
+[data-baseweb="popover"] div,
+[data-baseweb="popover"] ul,
+[data-baseweb="popover"] li,
+[data-baseweb="popover"] span,
+[data-baseweb="popover"] p {
     background-color: #ffffff !important;
-    color: #1B2A4A !important;
+    color: #111827 !important;
 }
 [data-baseweb="popover"] [role="option"] {
-    color: #1B2A4A !important;
-    font-size: 12px !important;
-    padding: 6px 12px !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    padding: 8px 14px !important;
+    border-bottom: 0.5px solid #e5e7eb !important;
 }
 [data-baseweb="popover"] [role="option"]:hover {
-    background-color: #f0f5ff !important;
+    background-color: #dbeafe !important;
     color: #1B2A4A !important;
 }
-[data-baseweb="popover"] [aria-selected="true"] {
+[data-baseweb="popover"] [aria-selected="true"],
+[data-baseweb="popover"] [aria-selected="true"] * {
     background-color: #1B2A4A !important;
     color: #C9A84C !important;
+    font-weight: 600 !important;
 }
 [data-baseweb="menu"] {
     background-color: #ffffff !important;
 }
-[data-baseweb="menu"] li {
-    color: #1B2A4A !important;
+[data-baseweb="menu"] ul {
     background-color: #ffffff !important;
 }
-[data-baseweb="menu"] li:hover {
-    background-color: #f0f5ff !important;
+[data-baseweb="menu"] li,
+[data-baseweb="menu"] li * {
+    color: #111827 !important;
+    background-color: #ffffff !important;
+    font-size: 13px !important;
+}
+[data-baseweb="menu"] li:hover,
+[data-baseweb="menu"] li:hover * {
+    background-color: #dbeafe !important;
     color: #1B2A4A !important;
 }
-/* Input de busca dentro do popup */
 [data-baseweb="popover"] input {
-    background-color: #f5f7fa !important;
-    color: #1B2A4A !important;
-    border: 1px solid #d4dde6 !important;
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+    border: 1.5px solid #1B2A4A !important;
     border-radius: 6px !important;
+    font-size: 13px !important;
 }
 
 /* ── Inputs ── */
@@ -1927,7 +1941,7 @@ elif page == "classificador":
                 "Categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_DIN, width="large"),
                 "SubCategoria": st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,      width="large"),
                 "Confiança":    st.column_config.TextColumn("Confiança", disabled=True, width="small"),
-                "Contato":      st.column_config.TextColumn("Contato",   disabled=True),
+                "Contato":      st.column_config.TextColumn("Contato"),
                 "Descricao":    st.column_config.TextColumn("Descrição", disabled=True),
                 "Data":         st.column_config.TextColumn("Data",      disabled=True, width="small"),
                 "Entrada":      st.column_config.TextColumn("Entrada",   disabled=True, width="small"),
@@ -1969,19 +1983,77 @@ elif page == "classificador":
 
         st.markdown("---")
         nome_base = f"caixinha_{aba_sel.replace(' ','_').replace('$','').strip()}_{datetime.today().strftime('%d%m%Y')}"
+
+        # ── Monta CSV no formato EXATO do Meu Dinheiro ───────────────────────
+        def montar_csv_meu_dinheiro(df, conta_nome="Caixinha 2025;2026"):
+            """Gera CSV no formato de importação do Meu Dinheiro Web."""
+            rows = []
+            for _, r in df.iterrows():
+                entrada = parse_numeric(pd.Series([r.get("Entrada","")])).iloc[0]
+                saida   = parse_numeric(pd.Series([r.get("Saida","")])).iloc[0]
+                # Determina Tipo e Valor efetivo
+                if pd.notna(entrada) and entrada > 0:
+                    tipo       = "Receita"
+                    val_ef     = entrada
+                    val_prev   = entrada
+                else:
+                    tipo       = "Despesa"
+                    val_ef     = -(saida) if (pd.notna(saida) and saida > 0) else 0.0
+                    val_prev   = val_ef
+                # Formata valor BR
+                def fmt_val(v):
+                    return f"{v:,.2f}".replace(",","X").replace(".",",").replace("X",".")
+                rows.append({
+                    "Tipo":                 tipo,
+                    "Status":               "A confirmar",
+                    "Data prevista":        r.get("Data",""),
+                    "Data efetiva":         r.get("Data",""),
+                    "Venc. Fatura":         "",
+                    "Valor previsto":       fmt_val(val_prev),
+                    "Valor efetivo":        fmt_val(val_ef),
+                    "Descrição":            str(r.get("Descricao",""))[:100],
+                    "Categoria":            str(r.get("Categoria","")) if r.get("Categoria") else "",
+                    "Subcategoria":         str(r.get("SubCategoria","")) if r.get("SubCategoria") else "",
+                    "Conta":                conta_nome,
+                    "Conta transferência":  "",
+                    "Centro":               "",
+                    "Contato":              str(r.get("Contato","")) if r.get("Contato") else "",
+                    "CPF/CNPJ":             "",
+                    "Razão social":         "",
+                    "Forma":                "Sem forma pagto.",
+                    "Data competência":     r.get("Data",""),
+                    "Tags":                 "",
+                    "Cartão":               "",
+                })
+            return pd.DataFrame(rows)
+
+        df_csv_md = montar_csv_meu_dinheiro(df_edit, conta_nome=aba_sel)
+
         dl1, dl2, dl3 = st.columns(3)
         with dl1:
-            st.markdown("**CSV — Meu Dinheiro**")
-            csv_cols = [c for c in ["Data","Contato","Descricao","Entrada","Saida","Categoria","SubCategoria"] if c in df_edit.columns]
-            csv_df = df_edit[csv_cols].copy()
-            csv_df.columns = ["Data","Contato/Fornecedor","Descrição","Entrada","Saída","Categoria","Subcategoria"][:len(csv_cols)]
-            st.download_button("⬇️  Baixar CSV", data=csv_df.to_csv(index=False,sep=";",encoding="utf-8-sig").encode("utf-8-sig"), file_name=f"{nome_base}.csv", mime="text/csv")
+            st.markdown("**CSV — Importar no Meu Dinheiro**")
+            st.caption("Formato exato com Categoria e Tipo preenchidos")
+            st.download_button(
+                "⬇️  Baixar CSV",
+                data=df_csv_md.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig"),
+                file_name=f"{nome_base}_meu_dinheiro.csv",
+                mime="text/csv"
+            )
         with dl2:
             st.markdown("**Excel — revisão**")
+            st.caption("Planilha completa com coluna de confiança")
             st.download_button("⬇️  Baixar Excel", data=to_excel_bytes(df_edit), file_name=f"{nome_base}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         with dl3:
             st.markdown("**OFX — extrato bancário**")
+            st.caption("Para conciliação — requer classificação manual no sistema")
             st.download_button("⬇️  Baixar OFX", data=gerar_ofx(df_edit, conta_nome=aba_sel).encode("utf-8"), file_name=f"{nome_base}.ofx", mime="application/octet-stream")
+
+        st.markdown("""
+        <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:0.8rem;color:#8899BB;">
+            💡 <strong style="color:#C9A84C;">Dica de importação:</strong> Use o <strong>CSV</strong> para importar lançamentos já classificados no Meu Dinheiro.
+            Vá em <strong>Lançamentos → Importar → selecione o CSV</strong> e mapeie as colunas.
+            O OFX é útil apenas para conciliação bancária.
+        </div>""", unsafe_allow_html=True)
 
     # ════════════════════════════
     with tab_regras:
