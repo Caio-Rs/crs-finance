@@ -1495,6 +1495,27 @@ elif page == "classificador":
     def salvar_regras_aprendidas(regras):
         st.session_state["_regras_storage"] = json.dumps(regras, ensure_ascii=False)
 
+    def get_chave(row):
+        """Chave única por lançamento: data + contato + descrição + valor."""
+        data  = str(row.get("Data","")).strip()
+        cont  = str(row.get("Contato","")).strip().lower()
+        desc  = str(row.get("Descricao","")).strip().lower()
+        ent   = str(row.get("Entrada","")).strip()
+        sai   = str(row.get("Saida","")).strip()
+        return f"{data}|{cont}|{desc}|{ent}|{sai}"
+
+    def carregar_exportados():
+        try:
+            dados = st.session_state.get("_exportados_storage", None)
+            if dados:
+                return set(json.loads(dados))
+        except Exception:
+            pass
+        return set()
+
+    def salvar_exportados(chaves: set):
+        st.session_state["_exportados_storage"] = json.dumps(list(chaves), ensure_ascii=False)
+
     def classificar(contato, descricao, tipo_mov, regras_aprendidas):
         c = str(contato).lower().strip()
         d = str(descricao).lower().strip()
@@ -1952,14 +1973,31 @@ elif page == "classificador":
 
             return None, ""  # será definido por sinal (E/S)
 
+        exportados = carregar_exportados()
+        n_ja_exportados = sum(1 for _, row in df_work.iterrows() if get_chave(row) in exportados)
+
+        # Banner informativo se houver lançamentos já exportados
+        if n_ja_exportados > 0:
+            n_novos = len(df_work) - n_ja_exportados
+            st.markdown(f"""
+            <div style="background:#162236;border-left:3px solid #C9A84C;border-radius:0 8px 8px 0;
+                        padding:8px 14px;font-size:0.82rem;margin-bottom:12px;">
+                📋 <strong style="color:#C9A84C;">{n_ja_exportados} lançamentos</strong>
+                <span style="color:#8899BB;">já foram exportados para o Meu Dinheiro anteriormente.</span>
+                <strong style="color:#4ade80;">{n_novos} novos</strong>
+                <span style="color:#8899BB;">para revisar.</span>
+            </div>""", unsafe_allow_html=True)
+
         if st.button("🤖  Classificar Automaticamente", key="btn_class"):
-            cats, subs, confs, tipos, contas_dest = [], [], [], [], []
+            cats, subs, confs, tipos, contas_dest, ja_exp_flags = [], [], [], [], [], []
             for _, row in df_work.iterrows():
                 entrada = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
                 saida   = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
                 tmov    = "E" if (pd.notna(entrada) and entrada > 0) else "S"
                 contato   = str(row.get("Contato",""))
                 descricao = str(row.get("Descricao",""))
+                chave     = get_chave(row)
+                ja_exp    = chave in exportados
 
                 # Detecta tipo
                 tipo_det, conta_det = detectar_tipo_lancamento(contato, descricao)
@@ -1968,19 +2006,24 @@ elif page == "classificador":
                     contas_dest.append(conta_det)
                     cats.append("")
                     subs.append("")
-                    confs.append("Auto")
+                    confs.append("Auto" if not ja_exp else "✅ Exportado")
                 else:
                     tipo_fin = "Receita" if tmov == "E" else "Despesa"
                     tipos.append(tipo_fin)
                     contas_dest.append("")
-                    cat, sub, conf = classificar(contato, descricao, tmov, regras_aprendidas)
-                    cats.append(cat); subs.append(sub); confs.append(conf)
+                    if ja_exp:
+                        cats.append(""); subs.append(""); confs.append("✅ Exportado")
+                    else:
+                        cat, sub, conf = classificar(contato, descricao, tmov, regras_aprendidas)
+                        cats.append(cat); subs.append(sub); confs.append(conf)
+                ja_exp_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
 
             df_work["Tipo Lançamento"] = tipos
             df_work["Conta Destino"]   = contas_dest
             df_work["Categoria"]       = cats
             df_work["SubCategoria"]    = subs
             df_work["Confiança"]       = confs
+            df_work["Status Export"]   = ja_exp_flags
             st.session_state["df_classificado"] = df_work.copy()
 
         if "df_classificado" not in st.session_state:
@@ -1988,17 +2031,22 @@ elif page == "classificador":
 
         df_class = st.session_state["df_classificado"].copy()
 
-        alta   = (df_class["Confiança"]=="Alta").sum()
-        aprend = (df_class["Confiança"]=="Aprendida").sum()
-        media  = (df_class["Confiança"]=="Média").sum()
-        manual = (df_class["Confiança"]=="Manual").sum()
+        # Garante coluna Status Export
+        if "Status Export" not in df_class.columns:
+            df_class["Status Export"] = "🆕 Novo"
+
+        total_exp = (df_class["Status Export"]=="✅ Sim").sum()
+        total_nov = (df_class["Status Export"]=="🆕 Novo").sum()
+        alta      = (df_class["Confiança"]=="Alta").sum()
+        aprend    = (df_class["Confiança"]=="Aprendida").sum()
+        manual    = (df_class[~df_class["Status Export"].str.contains("Sim")]["Confiança"]=="Manual").sum()
 
         m1,m2,m3,m4,m5 = st.columns(5)
         for col,lbl,val,cls in [
             (m1,"Total",str(len(df_class)),""),
-            (m2,"Alta confiança",str(alta),"green"),
-            (m3,"Aprendidas",str(aprend),"green"),
-            (m4,"Média",str(media),"amber"),
+            (m2,"Já exportados",str(total_exp),"green"),
+            (m3,"Novos",str(total_nov),"amber" if total_nov>0 else "green"),
+            (m4,"Aprendidas",str(aprend),"green"),
             (m5,"Revisão manual",str(manual),"red" if manual>0 else "green"),
         ]:
             col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
@@ -2032,6 +2080,7 @@ elif page == "classificador":
                 ),
                 "Categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_DIN, width="large"),
                 "SubCategoria": st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,      width="large"),
+                "Status Export":st.column_config.TextColumn("Export", disabled=True, width="small"),
                 "Confiança":    st.column_config.TextColumn("Confiança", disabled=True, width="small"),
                 "Contato":      st.column_config.TextColumn("Contato"),
                 "Descricao":    st.column_config.TextColumn("Descrição", disabled=True),
@@ -2147,22 +2196,44 @@ elif page == "classificador":
                 })
             return pd.DataFrame(rows)
 
-        df_csv_md = montar_csv_meu_dinheiro(df_edit, conta_nome=CONTA_PADRAO_CAIXINHA)
+        # Filtra só os NOVOS para exportar (exclui já exportados)
+        status_col = "Status Export" if "Status Export" in df_edit.columns else None
+        if status_col:
+            df_novos = df_edit[df_edit[status_col] != "✅ Sim"].copy()
+        else:
+            df_novos = df_edit.copy()
+
+        df_csv_md = montar_csv_meu_dinheiro(df_novos, conta_nome=CONTA_PADRAO_CAIXINHA)
+
+        n_novos_export = len(df_novos)
+        n_ja_exp_edit  = len(df_edit) - n_novos_export
 
         dl1, dl2, dl3 = st.columns(3)
         with dl1:
             st.markdown("**CSV — Importar no Meu Dinheiro**")
-            st.caption("16 colunas · Transferências com Conta Destino · Receitas/Despesas com Categoria")
+            if n_ja_exp_edit > 0:
+                st.caption(f"Apenas os {n_novos_export} novos · {n_ja_exp_edit} já exportados ignorados")
+            else:
+                st.caption("16 colunas · Transferências com Conta Destino · Receitas/Despesas com Categoria")
+
             import io as _io, csv as _csv
             buf = _io.StringIO()
             df_csv_md.to_csv(buf, index=False, sep=",", quoting=_csv.QUOTE_MINIMAL)
             csv_bytes = buf.getvalue().encode("utf-8")
-            st.download_button(
-                "⬇️  Baixar CSV",
+
+            if st.download_button(
+                f"⬇️  Baixar CSV ({n_novos_export} lançamentos)",
                 data=csv_bytes,
                 file_name=f"{nome_base}_meu_dinheiro.csv",
                 mime="text/csv"
-            )
+            ):
+                # Marca os novos como exportados no storage
+                exportados_atual = carregar_exportados()
+                for _, row in df_novos.iterrows():
+                    exportados_atual.add(get_chave(row))
+                salvar_exportados(exportados_atual)
+                st.success(f"✅ {n_novos_export} lançamentos marcados como exportados!")
+                st.rerun()
         with dl2:
             st.markdown("**Excel — revisão**")
             st.caption("Planilha completa com coluna de confiança")
@@ -2183,6 +2254,18 @@ elif page == "classificador":
     # ════════════════════════════
     with tab_regras:
         st.markdown('<div class="page-sub">Regras criadas pelas suas correções — prioridade máxima na classificação.</div>', unsafe_allow_html=True)
+
+        # ── Controle de exportados ────────────────────────────────────────────
+        exportados_hist = carregar_exportados()
+        if exportados_hist:
+            st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin-bottom:8px;">📋 <strong style="color:#C9A84C;">{len(exportados_hist)}</strong> lançamentos marcados como já exportados para o Meu Dinheiro.</div>', unsafe_allow_html=True)
+            if st.button("🗑️  Limpar histórico de exportados", key="btn_clear_exp"):
+                salvar_exportados(set())
+                st.success("Histórico limpo — todos os lançamentos serão tratados como novos.")
+                st.rerun()
+        else:
+            st.info("Nenhum lançamento marcado como exportado ainda.")
+        st.markdown("---")
         regras_atual = carregar_regras_aprendidas()
 
         if "_plano_carregado" in st.session_state:
