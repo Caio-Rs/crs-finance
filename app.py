@@ -1895,17 +1895,92 @@ elif page == "classificador":
             unsafe_allow_html=True
         )
 
+        # ── Contas disponíveis para transferência ────────────────────────────
+        CONTAS_DISPONIVEIS = [
+            "",
+            "Fechamento de caixa 2025;2026",
+            "Itaú 2025;2026",
+            "Banco do Brasil",
+            "Caixinha 2025;2026",
+        ]
+        CONTA_PADRAO_CAIXINHA = "Caixinha 2025;2026"
+
+        # ── Detecta se lançamento é Transferência entre contas ────────────────
+        TODOS_PROFISSIONAIS = MEDICOS + TERAPEUTAS + PESSOAL
+
+        # Palavras que indicam DESPESA direta mesmo com profissional no contato
+        # Normalizadas sem acento para comparação robusta
+        PALAVRAS_DESPESA_DIRETA = [
+            "instagram","facebook","marketing","publicidade","propaganda",
+            "gratificacao","salario","vale","uniforme","ferias",
+            "curso","treinamento","adiantamento","inss","fgts","rescisao",
+            "reembolso","material","limpeza","compra","nota fiscal","servico",
+            "remedio","medicamento","farmacia","lampada","toner","copia",
+            "energia","agua","internet","telefone","aluguel","condominio",
+            "manutencao","conserto","reparo","instalacao","montagem",
+            "salgado","bolo","cafe","lanche","marmita","restaurante",
+            "camiseta","uniforme","brinde","aniversario","evento",
+        ]
+
+        def detectar_tipo_lancamento(contato, descricao):
+            """
+            Retorna (tipo, conta_destino):
+            - "Transferência" + "Fechamento de caixa 2025;2026"  → Cx do dia / fechamento
+            - "Receita" / "Despesa" + ""                          → lançamento direto
+
+            Regras em ordem de prioridade:
+            1. "Cx do dia" ou "Fechamento Cx" na descrição → sempre Transferência
+            2. Profissional no contato + descrição NÃO é despesa direta → Transferência
+            3. Qualquer outra coisa → Receita ou Despesa por sinal
+            """
+            import unicodedata as _ud
+            def _norm(s): return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
+
+            c = _norm(contato)
+            d = _norm(descricao)
+
+            # Regra 1: palavras-chave de transferência na descrição
+            palavras_transf = ["cx do dia","fechamento cx","fechamento de cx","cx dia"]
+            if any(p in d for p in palavras_transf):
+                return "Transferência", "Fechamento de caixa 2025;2026"
+
+            # Regra 2: profissional no contato mas SEM palavras de despesa direta
+            eh_profissional   = any(_norm(p) in c for p in TODOS_PROFISSIONAIS)
+            eh_despesa_direta = any(_norm(p) in d for p in PALAVRAS_DESPESA_DIRETA)
+            if eh_profissional and not eh_despesa_direta:
+                return "Transferência", "Fechamento de caixa 2025;2026"
+
+            return None, ""  # será definido por sinal (E/S)
+
         if st.button("🤖  Classificar Automaticamente", key="btn_class"):
-            cats, subs, confs = [], [], []
+            cats, subs, confs, tipos, contas_dest = [], [], [], [], []
             for _, row in df_work.iterrows():
                 entrada = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
                 saida   = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
                 tmov    = "E" if (pd.notna(entrada) and entrada > 0) else "S"
-                cat, sub, conf = classificar(str(row.get("Contato","")), str(row.get("Descricao","")), tmov, regras_aprendidas)
-                cats.append(cat); subs.append(sub); confs.append(conf)
-            df_work["Categoria"]    = cats
-            df_work["SubCategoria"] = subs
-            df_work["Confiança"]    = confs
+                contato   = str(row.get("Contato",""))
+                descricao = str(row.get("Descricao",""))
+
+                # Detecta tipo
+                tipo_det, conta_det = detectar_tipo_lancamento(contato, descricao)
+                if tipo_det == "Transferência":
+                    tipos.append("Transferência")
+                    contas_dest.append(conta_det)
+                    cats.append("")
+                    subs.append("")
+                    confs.append("Auto")
+                else:
+                    tipo_fin = "Receita" if tmov == "E" else "Despesa"
+                    tipos.append(tipo_fin)
+                    contas_dest.append("")
+                    cat, sub, conf = classificar(contato, descricao, tmov, regras_aprendidas)
+                    cats.append(cat); subs.append(sub); confs.append(conf)
+
+            df_work["Tipo Lançamento"] = tipos
+            df_work["Conta Destino"]   = contas_dest
+            df_work["Categoria"]       = cats
+            df_work["SubCategoria"]    = subs
+            df_work["Confiança"]       = confs
             st.session_state["df_classificado"] = df_work.copy()
 
         if "df_classificado" not in st.session_state:
@@ -1935,9 +2010,26 @@ elif page == "classificador":
             Clique em <strong>Salvar correções</strong> para criar regras automáticas para os próximos meses.
         </div>""", unsafe_allow_html=True)
 
+        # Garante colunas existem mesmo se recarregado sem reclassificar
+        for col_init, val_init in [("Tipo Lançamento",""), ("Conta Destino","")]:
+            if col_init not in df_class.columns:
+                df_class[col_init] = val_init
+
         df_edit = st.data_editor(
             df_class,
             column_config={
+                "Tipo Lançamento": st.column_config.SelectboxColumn(
+                    "Tipo Lançamento",
+                    options=["Receita","Despesa","Transferência"],
+                    width="medium",
+                    help="Transferência = entre contas internas (sem Categoria). Receita/Despesa = lançamento direto com Categoria."
+                ),
+                "Conta Destino":   st.column_config.SelectboxColumn(
+                    "Conta Destino",
+                    options=CONTAS_DISPONIVEIS,
+                    width="large",
+                    help="Preencha só quando Tipo = Transferência"
+                ),
                 "Categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_DIN, width="large"),
                 "SubCategoria": st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,      width="large"),
                 "Confiança":    st.column_config.TextColumn("Confiança", disabled=True, width="small"),
@@ -1984,58 +2076,81 @@ elif page == "classificador":
         st.markdown("---")
         nome_base = f"caixinha_{aba_sel.replace(' ','_').replace('$','').strip()}_{datetime.today().strftime('%d%m%Y')}"
 
-        # ── Monta CSV no formato EXATO do Meu Dinheiro ───────────────────────
+        # ── Monta CSV no formato EXATO do Meu Dinheiro (16 colunas) ─────────
         def montar_csv_meu_dinheiro(df, conta_nome="Caixinha 2025;2026"):
-            """Gera CSV no formato de importação do Meu Dinheiro Web."""
+            """
+            Gera CSV no formato de importação do Meu Dinheiro Web — 16 colunas.
+            Regras:
+            - Tipo = Transferência → Conta Transferência preenchida, Categoria vazia, Valor positivo
+            - Tipo = Receita       → Valor positivo, Categoria preenchida, Conta Transf vazia
+            - Tipo = Despesa       → Valor negativo, Categoria preenchida, Conta Transf vazia
+            """
+            def fmt_val(v):
+                return f"{abs(v):.2f}".replace(".",",")
+
             rows = []
             for _, r in df.iterrows():
-                entrada = parse_numeric(pd.Series([r.get("Entrada","")])).iloc[0]
-                saida   = parse_numeric(pd.Series([r.get("Saida","")])).iloc[0]
-                # Determina Tipo e Valor efetivo
-                if pd.notna(entrada) and entrada > 0:
-                    tipo       = "Receita"
-                    val_ef     = entrada
-                    val_prev   = entrada
-                else:
-                    tipo       = "Despesa"
-                    val_ef     = -(saida) if (pd.notna(saida) and saida > 0) else 0.0
-                    val_prev   = val_ef
-                # Formata valor BR
-                def fmt_val(v):
-                    return f"{v:,.2f}".replace(",","X").replace(".",",").replace("X",".")
+                entrada    = parse_numeric(pd.Series([r.get("Entrada","")])).iloc[0]
+                saida      = parse_numeric(pd.Series([r.get("Saida","")])).iloc[0]
+                tipo       = str(r.get("Tipo Lançamento","")).strip()
+                conta_dest = str(r.get("Conta Destino","")).strip()
+                cat        = str(r.get("Categoria","")).strip()
+                sub        = str(r.get("SubCategoria","")).strip()
+                contato    = str(r.get("Contato","")).strip()
+                descricao  = str(r.get("Descricao",""))[:100].strip()
+                data       = str(r.get("Data","")).strip()
+
+                val_entrada = entrada if (pd.notna(entrada) and entrada > 0) else 0.0
+                val_saida   = saida   if (pd.notna(saida)   and saida   > 0) else 0.0
+
+                if tipo == "Transferência":
+                    # Transferência: valor sempre positivo no MD,
+                    # conta destino preenchida, categoria vazia
+                    valor_num = val_entrada if val_entrada > 0 else val_saida
+                    valor_str = fmt_val(valor_num)
+                    conta_transf = conta_dest if conta_dest else "Fechamento de caixa 2025;2026"
+                    cat_export = ""
+                    sub_export = ""
+                elif tipo == "Receita":
+                    valor_str    = fmt_val(val_entrada)
+                    conta_transf = ""
+                    cat_export   = cat
+                    sub_export   = sub
+                else:  # Despesa (default)
+                    valor_str    = f"-{fmt_val(val_saida)}"
+                    conta_transf = ""
+                    cat_export   = cat
+                    sub_export   = sub
+
                 rows.append({
-                    "Tipo":                 tipo,
-                    "Status":               "A confirmar",
-                    "Data prevista":        r.get("Data",""),
-                    "Data efetiva":         r.get("Data",""),
-                    "Venc. Fatura":         "",
-                    "Valor previsto":       fmt_val(val_prev),
-                    "Valor efetivo":        fmt_val(val_ef),
-                    "Descrição":            str(r.get("Descricao",""))[:100],
-                    "Categoria":            str(r.get("Categoria","")) if r.get("Categoria") else "",
-                    "Subcategoria":         str(r.get("SubCategoria","")) if r.get("SubCategoria") else "",
-                    "Conta":                conta_nome,
-                    "Conta transferência":  "",
-                    "Centro":               "",
-                    "Contato":              str(r.get("Contato","")) if r.get("Contato") else "",
-                    "CPF/CNPJ":             "",
-                    "Razão social":         "",
-                    "Forma":                "Sem forma pagto.",
-                    "Data competência":     r.get("Data",""),
-                    "Tags":                 "",
-                    "Cartão":               "",
+                    "Data":               data,
+                    "Valor":              valor_str,
+                    "Descrição":          descricao,
+                    "Conta":              conta_nome,
+                    "Conta Transferência":conta_transf,
+                    "Cartão":             "",
+                    "Categoria":          cat_export,
+                    "Subcategoria":       sub_export,
+                    "Contato":            contato,
+                    "Centro":             "",
+                    "Projeto":            "",
+                    "Forma":              "",
+                    "N. Documento":       "",
+                    "Observações":        "",
+                    "Data Competência":   data,
+                    "Tags":               "",
                 })
             return pd.DataFrame(rows)
 
-        df_csv_md = montar_csv_meu_dinheiro(df_edit, conta_nome=aba_sel)
+        df_csv_md = montar_csv_meu_dinheiro(df_edit, conta_nome=CONTA_PADRAO_CAIXINHA)
 
         dl1, dl2, dl3 = st.columns(3)
         with dl1:
             st.markdown("**CSV — Importar no Meu Dinheiro**")
-            st.caption("Formato exato com Categoria e Tipo preenchidos")
+            st.caption("16 colunas · Transferências com Conta Destino · Receitas/Despesas com Categoria")
             st.download_button(
                 "⬇️  Baixar CSV",
-                data=df_csv_md.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig"),
+                data=df_csv_md.to_csv(index=False, sep=",", encoding="utf-8").encode("utf-8"),
                 file_name=f"{nome_base}_meu_dinheiro.csv",
                 mime="text/csv"
             )
@@ -2050,9 +2165,10 @@ elif page == "classificador":
 
         st.markdown("""
         <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:0.8rem;color:#8899BB;">
-            💡 <strong style="color:#C9A84C;">Dica de importação:</strong> Use o <strong>CSV</strong> para importar lançamentos já classificados no Meu Dinheiro.
-            Vá em <strong>Lançamentos → Importar → selecione o CSV</strong> e mapeie as colunas.
-            O OFX é útil apenas para conciliação bancária.
+            💡 <strong style="color:#C9A84C;">Dica de importação no Meu Dinheiro:</strong>
+            Vá em <strong>Lançamentos → Importar → selecione o CSV</strong>.
+            Transferências já chegam com <strong>Conta Destino</strong> preenchida — o sistema cria os dois lados automaticamente.
+            Receitas e Despesas já chegam com <strong>Categoria</strong> — sem retrabalho.
         </div>""", unsafe_allow_html=True)
 
     # ════════════════════════════
