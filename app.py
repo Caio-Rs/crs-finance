@@ -1478,7 +1478,7 @@ elif page == "classificador":
         (["pró-labore","pro labore","prolabore"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.320 - Pró-labore"),
         (["prestação de serviço","prestacao","bpo"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.304 - Assessoria Financeira (BPO)"),
         (["devolução","devolveu","deposito","depósito"],[],"S","1.2 - RECEITAS NÃO OPERACIONAIS","1.203 - Reembolso de despesas"),
-        (["retirada"],[],"S","5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS","5.502 - Distribuição de Lucros"),
+        (["retirada","retiradas"],[],"S","5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS","5.502 - Distribuição de Lucros"),
         (["montagem","instalação","instalacao","montar"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.319 - Serviços de Terceiros - Montagem e instalações"),
     ]
 
@@ -1929,18 +1929,26 @@ elif page == "classificador":
         # ── Detecta se lançamento é Transferência entre contas ────────────────
         TODOS_PROFISSIONAIS = MEDICOS + TERAPEUTAS + PESSOAL
 
-        # Palavras que indicam DESPESA direta mesmo com profissional no contato
+        # Palavras que indicam DESPESA/MOVIMENTAÇÃO direta mesmo com profissional no contato
         # Normalizadas sem acento para comparação robusta
         PALAVRAS_DESPESA_DIRETA = [
+            # Marketing / pessoal
             "instagram","facebook","marketing","publicidade","propaganda",
             "gratificacao","salario","vale","uniforme","ferias",
             "curso","treinamento","adiantamento","inss","fgts","rescisao",
+            # Retiradas de sócios / movimentações (5.1)
+            "retirada","retiradas","pro labore","prolabore","distribuicao",
+            # Repasses externos (Fusma = repasse de terceiros)
+            "repasse externo",
+            # Despesas diversas
             "reembolso","material","limpeza","compra","nota fiscal","servico",
             "remedio","medicamento","farmacia","lampada","toner","copia",
             "energia","agua","internet","telefone","aluguel","condominio",
             "manutencao","conserto","reparo","instalacao","montagem",
             "salgado","bolo","cafe","lanche","marmita","restaurante",
-            "camiseta","uniforme","brinde","aniversario","evento",
+            "camiseta","brinde","aniversario","evento","joia","joias",
+            "papelaria","viagem","passagem","hospedagem","capa",
+            "protestada","energia protestada",
         ]
 
         def detectar_tipo_lancamento(contato, descricao):
