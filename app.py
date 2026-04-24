@@ -2080,13 +2080,19 @@ elif page == "classificador":
         def montar_csv_meu_dinheiro(df, conta_nome="Caixinha 2025;2026"):
             """
             Gera CSV no formato de importação do Meu Dinheiro Web — 16 colunas.
-            Regras:
-            - Tipo = Transferência → Conta Transferência preenchida, Categoria vazia, Valor positivo
-            - Tipo = Receita       → Valor positivo, Categoria preenchida, Conta Transf vazia
-            - Tipo = Despesa       → Valor negativo, Categoria preenchida, Conta Transf vazia
+            Valor: negativo = saída/despesa, positivo = entrada/receita (sem aspas, sem R$).
+            Transferência: valor positivo quando entrada, negativo quando saída.
+            Separador: vírgula. Encoding: utf-8.
             """
-            def fmt_val(v):
-                return f"{abs(v):.2f}".replace(".",",")
+            def fmt_num(v, negativo=False):
+                """
+                Formata número no padrão do Meu Dinheiro:
+                vírgula como decimal, sem ponto milhar — ex: -4,00 ou 300,00
+                Pandas coloca aspas quando o valor contém vírgula e o separador é vírgula,
+                o que é aceito pelo Meu Dinheiro Web.
+                """
+                s = f"{abs(v):.2f}".replace(".", ",")
+                return f"-{s}" if negativo else s
 
             rows = []
             for _, r in df.iterrows():
@@ -2100,45 +2106,44 @@ elif page == "classificador":
                 descricao  = str(r.get("Descricao",""))[:100].strip()
                 data       = str(r.get("Data","")).strip()
 
-                val_entrada = entrada if (pd.notna(entrada) and entrada > 0) else 0.0
-                val_saida   = saida   if (pd.notna(saida)   and saida   > 0) else 0.0
+                val_e = entrada if (pd.notna(entrada) and entrada > 0) else 0.0
+                val_s = saida   if (pd.notna(saida)   and saida   > 0) else 0.0
+                eh_saida = val_s > 0 and val_e == 0
 
                 if tipo == "Transferência":
-                    # Transferência: valor sempre positivo no MD,
-                    # conta destino preenchida, categoria vazia
-                    valor_num = val_entrada if val_entrada > 0 else val_saida
-                    valor_str = fmt_val(valor_num)
+                    # Transferência: sinal preservado — saída negativa, entrada positiva
+                    valor_str    = fmt_num(val_s, negativo=True) if eh_saida else fmt_num(val_e)
                     conta_transf = conta_dest if conta_dest else "Fechamento de caixa 2025;2026"
-                    cat_export = ""
-                    sub_export = ""
+                    cat_export   = ""
+                    sub_export   = ""
                 elif tipo == "Receita":
-                    valor_str    = fmt_val(val_entrada)
+                    valor_str    = fmt_num(val_e, negativo=False)
                     conta_transf = ""
                     cat_export   = cat
                     sub_export   = sub
-                else:  # Despesa (default)
-                    valor_str    = f"-{fmt_val(val_saida)}"
+                else:  # Despesa
+                    valor_str    = fmt_num(val_s, negativo=True)
                     conta_transf = ""
                     cat_export   = cat
                     sub_export   = sub
 
                 rows.append({
-                    "Data":               data,
-                    "Valor":              valor_str,
-                    "Descrição":          descricao,
-                    "Conta":              conta_nome,
-                    "Conta Transferência":conta_transf,
-                    "Cartão":             "",
-                    "Categoria":          cat_export,
-                    "Subcategoria":       sub_export,
-                    "Contato":            contato,
-                    "Centro":             "",
-                    "Projeto":            "",
-                    "Forma":              "",
-                    "N. Documento":       "",
-                    "Observações":        "",
-                    "Data Competência":   data,
-                    "Tags":               "",
+                    "Data":                data,
+                    "Valor":               valor_str,
+                    "Descrição":           descricao,
+                    "Conta":               conta_nome,
+                    "Conta Transferência": conta_transf,
+                    "Cartão":              "",
+                    "Categoria":           cat_export,
+                    "Subcategoria":        sub_export,
+                    "Contato":             contato,
+                    "Centro":              "",
+                    "Projeto":             "",
+                    "Forma":               "",
+                    "N. Documento":        "",
+                    "Observações":         "",
+                    "Data Competência":    data,
+                    "Tags":                "",
                 })
             return pd.DataFrame(rows)
 
@@ -2148,9 +2153,13 @@ elif page == "classificador":
         with dl1:
             st.markdown("**CSV — Importar no Meu Dinheiro**")
             st.caption("16 colunas · Transferências com Conta Destino · Receitas/Despesas com Categoria")
+            import io as _io, csv as _csv
+            buf = _io.StringIO()
+            df_csv_md.to_csv(buf, index=False, sep=",", quoting=_csv.QUOTE_MINIMAL)
+            csv_bytes = buf.getvalue().encode("utf-8")
             st.download_button(
                 "⬇️  Baixar CSV",
-                data=df_csv_md.to_csv(index=False, sep=",", encoding="utf-8").encode("utf-8"),
+                data=csv_bytes,
                 file_name=f"{nome_base}_meu_dinheiro.csv",
                 mime="text/csv"
             )
