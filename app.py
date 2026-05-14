@@ -2167,33 +2167,51 @@ elif page == "classificador":
                 val_s = saida   if (pd.notna(saida)   and saida   > 0) else 0.0
                 eh_saida = val_s > 0 and val_e == 0
 
+                # Nome limpo — remove título Dra/Dr
+                nome_limpo = " ".join(w for w in contato.split() if w.lower().rstrip(".") not in ("dra","dr")).strip()
+
                 if tipo == "Transferência":
-                    # Transferência: sinal preservado — saída negativa, entrada positiva
-                    valor_str    = fmt_num(val_s, negativo=True) if eh_saida else fmt_num(val_e)
-                    conta_transf = conta_dest if conta_dest else "Fechamento de caixa 2025;2026"
-                    cat_export   = ""
-                    sub_export   = ""
+                    # Descrição: "Cx Luciany 01/04/2026" / "Fusma Norla fevereiro"
+                    desc_lower = descricao.lower()
+                    if "cx do dia" in desc_lower or "cx dia" in desc_lower:
+                        prefixo = "Cx"
+                    elif "fechamento cx" in desc_lower or "fechamento de cx" in desc_lower:
+                        prefixo = "Fechamento Cx"
+                    elif "fusma" in desc_lower:
+                        prefixo = "Fusma"
+                    else:
+                        prefixo = descricao.split()[0] if descricao else "Cx"
+                    desc_export    = f"{prefixo} {nome_limpo} {data}".strip() if nome_limpo else descricao
+                    valor_str      = fmt_num(val_s, negativo=True) if eh_saida else fmt_num(val_e)
+                    conta_transf   = conta_dest if conta_dest else "Fechamento de caixa 2025;2026"
+                    cat_export     = ""
+                    sub_export     = ""
+                    contato_export = ""  # vazio nas transferências
                 elif tipo == "Receita":
-                    valor_str    = fmt_num(val_e, negativo=False)
-                    conta_transf = ""
-                    cat_export   = cat
-                    sub_export   = sub
+                    desc_export    = descricao
+                    valor_str      = fmt_num(val_e, negativo=False)
+                    conta_transf   = ""
+                    cat_export     = cat
+                    sub_export     = sub
+                    contato_export = contato
                 else:  # Despesa
-                    valor_str    = fmt_num(val_s, negativo=True)
-                    conta_transf = ""
-                    cat_export   = cat
-                    sub_export   = sub
+                    desc_export    = descricao
+                    valor_str      = fmt_num(val_s, negativo=True)
+                    conta_transf   = ""
+                    cat_export     = cat
+                    sub_export     = sub
+                    contato_export = contato
 
                 rows.append({
                     "Data":                data,
                     "Valor":               valor_str,
-                    "Descrição":           descricao,
+                    "Descrição":           desc_export,
                     "Conta":               conta_nome,
                     "Conta Transferência": conta_transf,
                     "Cartão":              "",
                     "Categoria":           cat_export,
                     "Subcategoria":        sub_export,
-                    "Contato":             contato,
+                    "Contato":             contato_export,
                     "Centro":              "",
                     "Projeto":             "",
                     "Forma":               "",
