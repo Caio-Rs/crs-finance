@@ -1480,6 +1480,13 @@ elif page == "classificador":
         (["devolução","devolveu","deposito","depósito"],[],"S","1.2 - RECEITAS NÃO OPERACIONAIS","1.203 - Reembolso de despesas"),
         (["retirada","retiradas"],[],"S","5.1 - MOVIMENTAÇÕES DE SÓCIOS / FINANCIAMENTOS","5.502 - Distribuição de Lucros"),
         (["montagem","instalação","instalacao","montar"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.319 - Serviços de Terceiros - Montagem e instalações"),
+        (["reparo","reparos","conserto","reforma","troca","trocar"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.326 - Manutencao e Conservacao"),
+        (["lampada","lampadas","lanterna","lâmpada"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.317 - Manutenção de Equipamento "),
+        (["instagram","facebook","marketing","publicidade","propaganda","redes sociais"],[],"S","3.3 - DESPESAS DE VENDAS E MARKETING","3.303 - Propaganda e publicidade"),
+        (["ornamentacao","ornamentação","decoracao","decoração","flores","arranjo"],[],"S","3.3 - DESPESAS DE VENDAS E MARKETING","3.302 - Feiras e Eventos"),
+        (["devolucao","devolveu","estorno","ajuste","especie"],[],"E","1.4 - RECEITAS FINANCEIRAS","1.401 - Ajuste de Caixa"),
+        (["galao","galões","galoes","agua mineral","water"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.310 - Material de Copa e Cozinha"),
+        (["papelaria","caneta","caderno","bloco","agenda"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.308 - Material de Escritório "),
     ]
 
     # ── Storage persistente ───────────────────────────────────────────────────
@@ -2004,7 +2011,7 @@ elif page == "classificador":
             # Retiradas de sócios / movimentações (5.1)
             "retirada","retiradas","pro labore","prolabore","distribuicao",
             # Repasses externos (Fusma = repasse de terceiros)
-            "repasse externo",
+            "repasse externo","devolucao","devolveu","especie","troca","reparos","reparo","conserto","reforma",
             # Despesas diversas
             "reembolso","material","limpeza","compra","nota fiscal","servico",
             "remedio","medicamento","farmacia","lampada","toner","copia",
@@ -2034,8 +2041,11 @@ elif page == "classificador":
             d = _norm(descricao)
 
             # Regra 1: palavras-chave de transferência na descrição
+            # Exceção: "pago com o cx do dia" é nota de pagamento, não transferência real
             palavras_transf = ["cx do dia","fechamento cx","fechamento de cx","cx dia"]
-            if any(p in d for p in palavras_transf):
+            eh_transf_desc = any(p in d for p in palavras_transf)
+            eh_nota_pagto  = any(p in d for p in ["pago com","pago no cx","pago cx"])
+            if eh_transf_desc and not eh_nota_pagto:
                 return "Transferência", "Fechamento de caixa 2025;2026"
 
             # Regra 2: profissional no contato mas SEM palavras de despesa direta
