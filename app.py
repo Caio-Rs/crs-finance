@@ -2154,7 +2154,7 @@ elif page == "classificador":
                     ⚠️ <strong style="color:#fcd34d;">{n_sem_match} contato(s) sem match</strong>
                     <span style="color:#fed7aa;"> na base do Meu Dinheiro — revise na coluna <strong>Contato MD</strong>
                     ou cadastre no dicionário (aba Contatos):</span><br>
-                    <span style="color:#fdba74;font-size:0.78rem;">{" · ".join(nomes_uniq)}</span>
+                    <span style="color:#fdba74;font-size:0.78rem;">{" · ".join(str(n) for n in nomes_uniq if n and str(n) != "nan")}</span>
                 </div>""", unsafe_allow_html=True)
 
         st.markdown("""
