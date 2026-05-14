@@ -1483,6 +1483,71 @@ elif page == "classificador":
     ]
 
     # ── Storage persistente ───────────────────────────────────────────────────
+    # ── Storage de mapeamento de contatos ──────────────────────────────────
+    def carregar_mapa_contatos():
+        """Retorna dict {palavra_chave_lower: nome_exato_md}"""
+        try:
+            dados = st.session_state.get("_contatos_mapa", None)
+            if dados:
+                return json.loads(dados)
+        except Exception:
+            pass
+        return {}
+
+    def salvar_mapa_contatos(mapa):
+        st.session_state["_contatos_mapa"] = json.dumps(mapa, ensure_ascii=False)
+
+    def carregar_base_md():
+        """Retorna lista de nomes do Meu Dinheiro (salva no storage)."""
+        try:
+            dados = st.session_state.get("_base_contatos_md", None)
+            if dados:
+                return json.loads(dados)
+        except Exception:
+            pass
+        return []
+
+    def salvar_base_md(nomes):
+        st.session_state["_base_contatos_md"] = json.dumps(nomes, ensure_ascii=False)
+
+    def resolver_contato(contato_input, mapa, base_md):
+        """
+        Resolve contato do input para nome exato do Meu Dinheiro.
+        Retorna (nome_resolvido, status):
+          status = "mapa"    → encontrado no dicionário manual
+          status = "auto"    → encontrado na base MD por match de palavra inteira
+          status = "sem_match" → não encontrou, retorna original com ⚠️
+        """
+        import unicodedata as _ud
+        def _n(s):
+            return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
+
+        cn = _n(contato_input)
+
+        # Camada 1: dicionário manual (match por palavra-chave)
+        for chave, nome_md in mapa.items():
+            if _n(chave) in cn or cn in _n(chave):
+                return nome_md, "mapa"
+
+        # Camada 2: auto-match na base MD
+        # Usa match de palavra INTEIRA para evitar "iara" dentro de "naiara"
+        palavras_input = [w for w in cn.split() if len(w) > 3]
+        melhor_match = None
+        melhor_score = 0
+        for nome_md in base_md:
+            nome_md_n = _n(nome_md)
+            palavras_md = set(nome_md_n.split())
+            score = sum(1 for p in palavras_input if p in palavras_md)  # match de palavra EXATA
+            if score > melhor_score:
+                melhor_score = score
+                melhor_match = nome_md
+
+        if melhor_score >= 1 and melhor_match:
+            return melhor_match, "auto"
+
+        # Camada 3: sem match
+        return contato_input, "sem_match"
+
     def carregar_regras_aprendidas():
         try:
             dados = st.session_state.get("_regras_storage", None)
@@ -1573,7 +1638,7 @@ elif page == "classificador":
     regras_aprendidas = carregar_regras_aprendidas()
 
     # ── TABS ──────────────────────────────────────────────────────────────────
-    tab_class, tab_plano, tab_regras = st.tabs(["🤖  Classificar", "📋  Plano de Contas", "📚  Regras Aprendidas"])
+    tab_class, tab_plano, tab_contatos, tab_regras = st.tabs(["🤖  Classificar", "📋  Plano de Contas", "👤  Contatos", "📚  Regras Aprendidas"])
 
     # ════════════════════════════
     with tab_plano:
@@ -1996,8 +2061,11 @@ elif page == "classificador":
                 <span style="color:#8899BB;">para revisar.</span>
             </div>""", unsafe_allow_html=True)
 
+        mapa_contatos = carregar_mapa_contatos()
+        base_md       = carregar_base_md()
+
         if st.button("🤖  Classificar Automaticamente", key="btn_class"):
-            cats, subs, confs, tipos, contas_dest, ja_exp_flags = [], [], [], [], [], []
+            cats, subs, confs, tipos, contas_dest, ja_exp_flags, contatos_md, status_contatos = [], [], [], [], [], [], [], []
             for _, row in df_work.iterrows():
                 entrada = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
                 saida   = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
@@ -2026,12 +2094,26 @@ elif page == "classificador":
                         cats.append(cat); subs.append(sub); confs.append(conf)
                 ja_exp_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
 
-            df_work["Tipo Lançamento"] = tipos
-            df_work["Conta Destino"]   = contas_dest
-            df_work["Categoria"]       = cats
-            df_work["SubCategoria"]    = subs
-            df_work["Confiança"]       = confs
-            df_work["Status Export"]   = ja_exp_flags
+                # Resolve contato — só para Receita/Despesa
+                tipo_final = tipos[-1]
+                if tipo_final == "Transferência":
+                    contatos_md.append("")
+                    status_contatos.append("transf")
+                else:
+                    nome_res, status_res = resolver_contato(
+                        str(row.get("Contato","")), mapa_contatos, base_md
+                    )
+                    contatos_md.append(nome_res)
+                    status_contatos.append(status_res)
+
+            df_work["Tipo Lançamento"]  = tipos
+            df_work["Conta Destino"]    = contas_dest
+            df_work["Categoria"]        = cats
+            df_work["SubCategoria"]     = subs
+            df_work["Confiança"]        = confs
+            df_work["Status Export"]    = ja_exp_flags
+            df_work["Contato MD"]       = contatos_md
+            df_work["_status_contato"]  = status_contatos
             st.session_state["df_classificado"] = df_work.copy()
 
         if "df_classificado" not in st.session_state:
@@ -2060,14 +2142,30 @@ elif page == "classificador":
             col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
+        # ── Alerta de contatos sem match ─────────────────────────────────────
+        if "_status_contato" in df_class.columns:
+            n_sem_match = (df_class["_status_contato"] == "sem_match").sum()
+            if n_sem_match > 0:
+                nomes_sem = df_class[df_class["_status_contato"]=="sem_match"]["Contato MD"].tolist()
+                nomes_uniq = list(dict.fromkeys(nomes_sem))[:5]
+                st.markdown(f"""
+                <div style="background:#422006;border-left:3px solid #f97316;border-radius:0 8px 8px 0;
+                            padding:10px 14px;font-size:0.82rem;margin-bottom:12px;">
+                    ⚠️ <strong style="color:#fcd34d;">{n_sem_match} contato(s) sem match</strong>
+                    <span style="color:#fed7aa;"> na base do Meu Dinheiro — revise na coluna <strong>Contato MD</strong>
+                    ou cadastre no dicionário (aba Contatos):</span><br>
+                    <span style="color:#fdba74;font-size:0.78rem;">{" · ".join(nomes_uniq)}</span>
+                </div>""", unsafe_allow_html=True)
+
         st.markdown("""
         <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:#C9A84C;">
-            ✏️ Edite <strong>Categoria</strong> e <strong>SubCategoria</strong> diretamente na tabela.
+            ✏️ Edite <strong>Categoria</strong>, <strong>SubCategoria</strong> e <strong>Contato MD</strong> diretamente na tabela.
             Clique em <strong>Salvar correções</strong> para criar regras automáticas para os próximos meses.
         </div>""", unsafe_allow_html=True)
 
         # Garante colunas existem mesmo se recarregado sem reclassificar
-        for col_init, val_init in [("Tipo Lançamento",""), ("Conta Destino","")]:
+        for col_init, val_init in [("Tipo Lançamento",""), ("Conta Destino",""),
+                                   ("Contato MD",""), ("_status_contato","sem_match")]:
             if col_init not in df_class.columns:
                 df_class[col_init] = val_init
 
@@ -2089,6 +2187,8 @@ elif page == "classificador":
                 "Categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_DIN, width="large"),
                 "SubCategoria": st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,      width="large"),
                 "Status Export":st.column_config.TextColumn("Export", disabled=True, width="small"),
+                "Contato MD":   st.column_config.TextColumn("Contato MD", width="medium",
+                    help="Nome exato no Meu Dinheiro. ⚠️ = sem match na base — edite antes de exportar."),
                 "Confiança":    st.column_config.TextColumn("Confiança", disabled=True, width="small"),
                 "Contato":      st.column_config.TextColumn("Contato"),
                 "Descricao":    st.column_config.TextColumn("Descrição", disabled=True),
@@ -2160,6 +2260,9 @@ elif page == "classificador":
                 cat        = str(r.get("Categoria","")).strip()
                 sub        = str(r.get("SubCategoria","")).strip()
                 contato    = str(r.get("Contato","")).strip()
+                contato_md = str(r.get("Contato MD","")).strip()
+                # Remove prefixo ⚠️ se presente (sem match — usa original)
+                contato_md_clean = contato_md.lstrip("⚠️ ").strip() if contato_md else contato
                 descricao  = str(r.get("Descricao",""))[:100].strip()
                 data       = str(r.get("Data","")).strip()
 
@@ -2193,14 +2296,14 @@ elif page == "classificador":
                     conta_transf   = ""
                     cat_export     = cat
                     sub_export     = sub
-                    contato_export = contato
+                    contato_export = contato_md_clean or contato
                 else:  # Despesa
                     desc_export    = descricao
                     valor_str      = fmt_num(val_s, negativo=True)
                     conta_transf   = ""
                     cat_export     = cat
                     sub_export     = sub
-                    contato_export = contato
+                    contato_export = contato_md_clean or contato
 
                 rows.append({
                     "Data":                data,
@@ -2278,6 +2381,110 @@ elif page == "classificador":
         </div>""", unsafe_allow_html=True)
 
     # ════════════════════════════
+    # ════════════════════════════════════════════════════════════════
+    with tab_contatos:
+        st.markdown('<div class="page-sub">Mapeie contatos do input para os nomes exatos do Meu Dinheiro. Salvo permanentemente no app.</div>', unsafe_allow_html=True)
+
+        mapa_atual = carregar_mapa_contatos()
+        base_atual = carregar_base_md()
+
+        # ── Upload base de contatos do Meu Dinheiro ───────────────────────
+        st.markdown("**Carregar base de contatos do Meu Dinheiro**")
+        st.caption("Upload do arquivo exportado em Cadastros → Contatos (Excel). Salvo automaticamente para os próximos meses.")
+        f_base_md = st.file_uploader(" ", type=["xlsx","xls","csv"], key="base_md_upload", label_visibility="collapsed")
+        if f_base_md:
+            try:
+                df_base = pd.read_excel(f_base_md) if f_base_md.name.endswith((".xlsx",".xls")) else pd.read_csv(f_base_md)
+                col_nome = next((c for c in df_base.columns if "nome" in c.lower()), df_base.columns[0])
+                nomes_base = [str(n).strip() for n in df_base[col_nome].dropna() if str(n).strip()]
+                salvar_base_md(nomes_base)
+                base_atual = nomes_base
+                st.success(f"✅ {len(nomes_base)} contatos carregados e salvos!")
+            except Exception as e:
+                st.warning(f"Erro ao ler base: {e}")
+
+        if base_atual:
+            st.markdown(f'<div style="font-size:0.8rem;color:#C9A84C;margin-bottom:12px;">📋 {len(base_atual)} contatos na base — auto-match ativo</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="font-size:0.8rem;color:#8899BB;margin-bottom:12px;">Nenhuma base carregada — apenas dicionário manual será usado.</div>', unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # ── Dicionário manual ─────────────────────────────────────────────
+        st.markdown("**Dicionário manual de contatos**")
+        st.caption("Palavra-chave do input → Nome exato no Meu Dinheiro. Tem prioridade máxima sobre o auto-match.")
+
+        # Adicionar novo mapeamento
+        ma1, ma2, ma3 = st.columns([2,3,1])
+        with ma1:
+            nova_chave = st.text_input(" ", placeholder="Palavra-chave (ex: agua mineral)", key="novo_map_chave", label_visibility="collapsed")
+        with ma2:
+            if base_atual:
+                novo_nome = st.selectbox(" ", ["— Digite ou selecione —"] + sorted(base_atual), key="novo_map_nome_sel", label_visibility="collapsed")
+                if novo_nome == "— Digite ou selecione —":
+                    novo_nome = st.text_input(" ", placeholder="Ou digite o nome exato", key="novo_map_nome_txt", label_visibility="collapsed")
+            else:
+                novo_nome = st.text_input(" ", placeholder="Nome exato no Meu Dinheiro", key="novo_map_nome_txt", label_visibility="collapsed")
+        with ma3:
+            if st.button("➕ Adicionar", key="btn_add_mapa", use_container_width=True):
+                if nova_chave.strip() and novo_nome and novo_nome not in ("— Digite ou selecione —",""):
+                    mapa_edit = carregar_mapa_contatos()
+                    mapa_edit[nova_chave.strip().lower()] = novo_nome.strip()
+                    salvar_mapa_contatos(mapa_edit)
+                    st.success(f"Mapeamento adicionado: '{nova_chave}' → '{novo_nome}'")
+                    st.rerun()
+                else:
+                    st.warning("Preencha os dois campos.")
+
+        # Tabela do dicionário atual
+        st.markdown("<br>", unsafe_allow_html=True)
+        if mapa_atual:
+            st.markdown(f'<div style="font-size:0.8rem;color:#8899BB;margin-bottom:8px;">{len(mapa_atual)} mapeamentos salvos</div>', unsafe_allow_html=True)
+            df_mapa = pd.DataFrame([{"Palavra-chave (input)": k, "Nome no Meu Dinheiro": v} for k,v in mapa_atual.items()])
+            df_mapa_edit = st.data_editor(
+                df_mapa,
+                column_config={
+                    "Palavra-chave (input)": st.column_config.TextColumn("Palavra-chave (input)", width="medium"),
+                    "Nome no Meu Dinheiro":  st.column_config.TextColumn("Nome no Meu Dinheiro",  width="large"),
+                },
+                num_rows="dynamic", use_container_width=True, hide_index=True, key="editor_mapa"
+            )
+            mc1, mc2 = st.columns(2)
+            with mc1:
+                if st.button("💾  Salvar alterações", key="btn_save_mapa", use_container_width=True):
+                    novo_mapa = {str(r["Palavra-chave (input)"]).strip().lower(): str(r["Nome no Meu Dinheiro"]).strip()
+                                 for _, r in df_mapa_edit.iterrows()
+                                 if str(r.get("Palavra-chave (input)","")).strip()}
+                    salvar_mapa_contatos(novo_mapa)
+                    st.success("Dicionário salvo!")
+                    st.rerun()
+            with mc2:
+                st.download_button("⬇️  Exportar dicionário JSON",
+                    data=json.dumps(mapa_atual, ensure_ascii=False, indent=2).encode("utf-8"),
+                    file_name="contatos_mapa_crs.json", mime="application/json",
+                    use_container_width=True)
+        else:
+            st.info("Nenhum mapeamento manual ainda. Adicione acima para começar.")
+
+        # ── Preview auto-match ────────────────────────────────────────────
+        if base_atual:
+            st.markdown("---")
+            st.markdown("**Testar resolução de contato**")
+            st.caption("Simule como um contato do input será resolvido.")
+            tc1, tc2 = st.columns(2)
+            with tc1:
+                teste_contato = st.text_input(" ", placeholder="Digite um nome do input (ex: agua mineral)", key="teste_contato_inp", label_visibility="collapsed")
+            with tc2:
+                if teste_contato:
+                    nome_res, status_res = resolver_contato(teste_contato, carregar_mapa_contatos(), base_atual)
+                    cores = {"mapa":"#4ade80","auto":"#93c5fd","sem_match":"#f97316"}
+                    labels = {"mapa":"Dicionário manual","auto":"Auto-match base MD","sem_match":"⚠️ Sem match"}
+                    st.markdown(f'''
+                    <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-top:4px;font-size:0.85rem;">
+                        <span style="color:{cores[status_res]};font-weight:600;">{labels[status_res]}</span><br>
+                        <span style="color:#e2e8f0;">→ {nome_res}</span>
+                    </div>''', unsafe_allow_html=True)
+
     with tab_regras:
         st.markdown('<div class="page-sub">Regras criadas pelas suas correções — prioridade máxima na classificação.</div>', unsafe_allow_html=True)
 
