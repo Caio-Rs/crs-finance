@@ -2025,14 +2025,16 @@ elif page == "classificador":
 
         def detectar_tipo_lancamento(contato, descricao):
             """
-            Retorna (tipo, conta_destino):
-            - "Transferência" + "Fechamento de caixa 2025;2026"  → Cx do dia / fechamento
-            - "Receita" / "Despesa" + ""                          → lançamento direto
+            Retorna (tipo, conta_destino, cat_forcada, sub_forcada):
+            - "Cx do dia" + Médico/Terapeuta → Receita ou Despesa com categoria da Matriz
+            - Profissional sem "cx do dia" e sem despesa direta → Transferência
+            - Demais → None (classificação por regras base)
 
-            Regras em ordem de prioridade:
-            1. "Cx do dia" ou "Fechamento Cx" na descrição → sempre Transferência
-            2. Profissional no contato + descrição NÃO é despesa direta → Transferência
-            3. Qualquer outra coisa → Receita ou Despesa por sinal
+            Matriz de "Cx do dia":
+            Médico  + Entrada → 10.08 Recebimento Bruto Producao - Medicos
+            Médico  + Saída   → 20.01 Repasse Caixa - Medicos
+            Terapeuta + Entrada → 10.09 Recebimento Bruto Producao - Terapeutas
+            Terapeuta + Saída   → 20.02 Repasse Caixa - Terapeutas
             """
             import unicodedata as _ud
             def _norm(s): return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
@@ -2040,21 +2042,30 @@ elif page == "classificador":
             c = _norm(contato)
             d = _norm(descricao)
 
-            # Regra 1: palavras-chave de transferência na descrição
-            # Exceção: "pago com o cx do dia" é nota de pagamento, não transferência real
-            palavras_transf = ["cx do dia","fechamento cx","fechamento de cx","cx dia"]
-            eh_transf_desc = any(p in d for p in palavras_transf)
-            eh_nota_pagto  = any(p in d for p in ["pago com","pago no cx","pago cx"])
-            if eh_transf_desc and not eh_nota_pagto:
-                return "Transferência", "Fechamento de caixa 2025;2026"
+            palavras_cx = ["cx do dia","caixa do dia","cx dia","fechamento cx","fechamento de cx","fechamento caixa"]
+            eh_cx       = any(p in d for p in palavras_cx)
+            eh_nota     = any(p in d for p in ["pago com","pago no cx","pago cx"])
 
-            # Regra 2: profissional no contato mas SEM palavras de despesa direta
-            eh_profissional   = any(_norm(p) in c for p in TODOS_PROFISSIONAIS)
-            eh_despesa_direta = any(_norm(p) in d for p in PALAVRAS_DESPESA_DIRETA)
-            if eh_profissional and not eh_despesa_direta:
-                return "Transferência", "Fechamento de caixa 2025;2026"
+            eh_medico     = any(_norm(p) in c for p in MEDICOS)
+            eh_terapeuta  = any(_norm(p) in c for p in TERAPEUTAS)
+            eh_prof       = eh_medico or eh_terapeuta
+            eh_desp_dir   = any(_norm(p) in d for p in PALAVRAS_DESPESA_DIRETA)
 
-            return None, ""  # será definido por sinal (E/S)
+            if eh_cx and not eh_nota:
+                if eh_medico:
+                    # Será Receita ou Despesa dependendo do sinal — retorna None com marcador
+                    return "CX_MEDICO", "", "", ""
+                elif eh_terapeuta:
+                    return "CX_TERAPEUTA", "", "", ""
+                else:
+                    # Cx do dia sem profissional identificado — Transferência genérica
+                    return "Transferência", "Fechamento de caixa 2025;2026", "", ""
+
+            # Profissional no contato sem "cx" e sem despesa direta → Transferência
+            if eh_prof and not eh_desp_dir and not eh_nota:
+                return "Transferência", "Fechamento de caixa 2025;2026", "", ""
+
+            return None, "", "", ""  # classificação normal por regras base
 
         exportados = carregar_exportados()
         n_ja_exportados = sum(1 for _, row in df_work.iterrows() if get_chave(row) in exportados)
@@ -2085,14 +2096,40 @@ elif page == "classificador":
                 chave     = get_chave(row)
                 ja_exp    = chave in exportados
 
-                # Detecta tipo
-                tipo_det, conta_det = detectar_tipo_lancamento(contato, descricao)
+                # Detecta tipo via Matriz Cx/Caixa
+                tipo_det, conta_det, cat_det, sub_det = detectar_tipo_lancamento(contato, descricao)
+
                 if tipo_det == "Transferência":
                     tipos.append("Transferência")
                     contas_dest.append(conta_det)
-                    cats.append("")
-                    subs.append("")
+                    cats.append(""); subs.append("")
                     confs.append("Auto" if not ja_exp else "✅ Exportado")
+
+                elif tipo_det in ("CX_MEDICO", "CX_TERAPEUTA"):
+                    # Cx do dia com profissional → Receita ou Despesa pela Matriz
+                    if tmov == "E":
+                        tipo_fin = "Receita"
+                        if tipo_det == "CX_MEDICO":
+                            cat_fin = "10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)"
+                            sub_fin = "10.08 - Recebimento Bruto Producao - Medicos"
+                        else:
+                            cat_fin = "10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)"
+                            sub_fin = "10.09 - Recebimento Bruto Producao - Terapeutas"
+                    else:
+                        tipo_fin = "Despesa"
+                        if tipo_det == "CX_MEDICO":
+                            cat_fin = "20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)"
+                            sub_fin = "20.01 - Repasse Caixa - Medicos (% producao)"
+                        else:
+                            cat_fin = "20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)"
+                            sub_fin = "20.02 - Repasse Caixa - Terapeutas (% producao)"
+                    tipos.append(tipo_fin)
+                    contas_dest.append("")
+                    if ja_exp:
+                        cats.append(""); subs.append(""); confs.append("✅ Exportado")
+                    else:
+                        cats.append(cat_fin); subs.append(sub_fin); confs.append("Alta")
+
                 else:
                     tipo_fin = "Receita" if tmov == "E" else "Despesa"
                     tipos.append(tipo_fin)
