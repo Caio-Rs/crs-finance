@@ -1414,7 +1414,11 @@ elif page == "classificador":
     st.markdown('<div class="page-sub">Classifica automaticamente os lançamentos, aprende com suas correções e aceita atualizações do plano de contas.</div>', unsafe_allow_html=True)
 
     # ── Plano de contas padrão embutido (fallback) ────────────────────────────
-    PLANO_PADRAO = {"2.1 IMPOSTOS E TAXAS":["2.101 - Simples Nacional (DAS)","2.102 - Parcelamentos de Impostos"],"2.2 DEDUCOES DE RECEITAS":["2.201 - Devolucao de vendas/Reembolso","2.202 - Descontos ","2.203 - Desembolso - Nota Fiscal","2.204 - Cancelamento/Glosas de Convenios"],"2.3 - CUSTO DIRETO COM PESSOAL (MOD)":[],"2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)":["2.401 - Teste/Vacinas para Revenda","2.402 - Material de Consumo Clinico","2.403 - Material de Protecao (EPIs)"],"20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)":["20.01 - Repasse Caixa - Medicos (% producao)","20.02 - Repasse Caixa - Terapeutas (% producao)","20.03 - Repasse Caixa - Medicos (valor fixo)","20.04 - Repasse Caixa - Terapeutas (valor fixo)"],"3.1 DESPESAS ADMINISTRATIVAS":["3.301 - Agua e Esgoto","3.302 - IPTU","3.303 - Aluguel","3.304 - Assessoria Financeira (BPO)","3.305 - Consultoria","3.306 - Cartorio","3.307 - Energia Eletrica","3.308 - Material de Escritorio","3.309 - Confraternizacao/Coffee break","3.310 - Material de Copa e Cozinha","3.311 - Material de Informatica","3.312 - Material de Limpeza","3.313 - Seguranca e Monitoramento","3.314 - Contabilidade","3.315 - Telefone e Internet","3.316 - Aluguel de Maquininha - Adquirente de Cartao","3.317 - Manutenção de Equipamento ","3.318 - Softwares e Sistemas de Gestao","3.319 - Servicos de Terceiros - Montagem e instalacoes","3.320 - Pro-labore","3.321 - Manutencao de Informatica (contrato)","3.322 - Certificados Digitais","3.323 - Frete/Transportadora","3.324 - Seguro do Imovel","3.325 - Taxas de Adesao","3.326 - Manutencao e Conservacao","3.327 - Viagens - Passagem Aerea e outros","3.328 - Viagens - Servico de Hospedagem","3.329 - Viagens - Transporte e Locomocao","3.330 - Taxas, Licencas e Anuidades Regulatorias","3.331 - Servico de Limpeza","3.332 - Parcela Imovel Proprio (equiv. Aluguel)"],"3.2 - DESPESAS COM PESSOAL":["3.201 - Salario - Fonoaudiologia (C)","3.202 - Salario - Psicologa (C)","3.203 - Salarios (D)","3.204 - 13º Salario (D)","3.205 - Ferias (D)","3.206 - Vale Alimentacao (D)","3.207 - Vale Transporte (D)","3.208 - Uniforme (D)","3.209 - Cursos e Treinamentos (D)","3.210 - Exames Admissional/Demissional","3.211 - FGTS (D)","3.212 - Gratificacao (D)","3.213 - Vale Manicure (D)","3.214 - INSS/IRRF (D)","3.215 - Estagiarios (D)","3.216 - Rescisao","3.217 - Beneficios Exames-Medicos com Coparticipacao"],"3.3 - DESPESAS DE VENDAS E MARKETING":["3.301 - Jessica (Stories)","3.302 - Agencia Experience (Conteudo)","3.303 - Agencia Coqueiro Midia (CRM/IA)","3.304 - Mensalidade Chat OpenAI IA","3.305 - Ornamentacao/Eventos","3.306 - Brindes","3.307 - Patrocinios","3.308 - Publicidade - Meta Ads - Trafego","3.309 - Outdoors"],"3.4 - DESPESAS FINANCEIRAS":["3.402 - Juros sobre Emprestimos/Financ/ChequeEspecial","3.403 - Tarifas Bancarias","3.404 - Taxas de Cartão de Credito/Debito (MDR + Antecipacao)","3.405 - Juros/Multa de atraso a Fornecedores","3.406 - Anuidade Cartao de Credito Empresarial","3.407 - IOF sobre operacoes de credito"],"4.1 - INVESTIMENTOS":["4.401 - Móveis e Utensílios ","4.403 - Máquinas e Equipamentos","4.404 - Sistema de Energia Solar","4.405 - Obras/Projeto Arquitetonico","4.406 - Integralização Capital Unicred"],"5.1 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["5.502 - Distribuicao de Lucros","5.503 - Quitacao Cheque Especial (Saida)","5.505 - Financiamento - Pronampe","5.506 - Pagamento de Mutuo a Socios"],"6.1 - OUTRAS DESPESAS OPERACIONAIS":["6.601 - Estornos Negativos","6.602 - Faltas de Caixa"],"7.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS":["7.701 - Repasse de Valor - Medicos","7.702 - Repasse de Valor - Terapeutas"],"1.1 - RECEITAS OPERACIONAIS (DRE)":["1.101 - Honorarios Clinicos - Medicos","1.102 - Honorários Clínicos - Terapeutas","1.103 - Receita Recebimento Notas Fiscais/Faturados","1.104 - Receita venda de Vacinas","1.105 - Receita Vendas Cartao - Rede Credito e Debito"],"1.2 - RECEITAS COMPLEMENTARES OPERACIONAIS":["1.201 - Exames e Teste - Laboratoriais ","1.202 - Venda de Ativos","1.206 - Receitas Eventuais – Estagios"],"1.3 - RECUPERACAO E AJUSTE OPERACIONAIS":["1.301 - Reembolso de Valores Exames Medicos - Colaboradores","1.302 - Valores Recebidos a Maior","1.303 - Estornos Positivos","1.304 - Creditos Recuperados"],"1.4 - RECEITAS FINANCEIRAS":["1.402 - Descontos obtidos","1.403 - Rendimentos de Aplicacoes","1.404 - Juros s/ duplicatas","1.405 - Multas"],"1.5 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["1.501 - Aporte de Capital","1.502 - Uso de Cheque Especial (entrada)","1.503 - Mutuo de Socios (Emprestimo de socios)"],"1.7 - MOVIMENTACOES TRANSITORIAS":["1.701 - Ajuste de Caixa a Regularizar","1.702 - Depositos nao Identificados","1.703 - Transferencias Transitorias","1.704 - Adiantamento a Regularizar"],"1.8 - OUTRAS RECEITAS OPERACIONAIS":["1.801 - Sobra de Caixa"],"1.9 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS":["1.901 - Valores a Repassar - Medicos","1.902 - Valores a Repassar - Terapeutas"],"10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)":["10.01 - Recebimento Pix/TED - Sinal de Consulta","10.02 - Recebimento Pix/TED - Consulta Final (Quitação)","10.03 - Recebimento Pix/TED - Terapias","10.04 - Recebimento Dinheiro Especie - Consultas/Terapias","10.05 - Recebimento Pix/TED - Convenios e Faturados","10.06 - Recebimento Cartao Liquido (Rede-Itau)","10.07 - Recebimento Pix/TED - Venda de Vacinas","10.08 - Recebimento Bruto Producao - Medicos","10.09 - Recebimento Bruto Producao - Terapeutas"]}
+    def norm_p(s):
+        import unicodedata as _ud
+        return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
+
+        PLANO_PADRAO = {"2.1 IMPOSTOS E TAXAS":["2.101 - Simples Nacional (DAS)","2.102 - Parcelamentos de Impostos"],"2.2 DEDUCOES DE RECEITAS":["2.201 - Devolucao de vendas/Reembolso","2.202 - Descontos ","2.203 - Desembolso - Nota Fiscal","2.204 - Cancelamento/Glosas de Convenios"],"2.3 - CUSTO DIRETO COM PESSOAL (MOD)":[],"2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)":["2.401 - Teste/Vacinas para Revenda","2.402 - Material de Consumo Clinico","2.403 - Material de Protecao (EPIs)"],"20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)":["20.01 - Repasse Caixa - Medicos (% producao)","20.02 - Repasse Caixa - Terapeutas (% producao)","20.03 - Repasse Caixa - Medicos (valor fixo)","20.04 - Repasse Caixa - Terapeutas (valor fixo)"],"3.1 DESPESAS ADMINISTRATIVAS":["3.301 - Agua e Esgoto","3.302 - IPTU","3.303 - Aluguel","3.304 - Assessoria Financeira (BPO)","3.305 - Consultoria","3.306 - Cartorio","3.307 - Energia Eletrica","3.308 - Material de Escritorio","3.309 - Confraternizacao/Coffee break","3.310 - Material de Copa e Cozinha","3.311 - Material de Informatica","3.312 - Material de Limpeza","3.313 - Seguranca e Monitoramento","3.314 - Contabilidade","3.315 - Telefone e Internet","3.316 - Aluguel de Maquininha - Adquirente de Cartao","3.317 - Manutenção de Equipamento ","3.318 - Softwares e Sistemas de Gestao","3.319 - Servicos de Terceiros - Montagem e instalacoes","3.320 - Pro-labore","3.321 - Manutencao de Informatica (contrato)","3.322 - Certificados Digitais","3.323 - Frete/Transportadora","3.324 - Seguro do Imovel","3.325 - Taxas de Adesao","3.326 - Manutencao e Conservacao","3.327 - Viagens - Passagem Aerea e outros","3.328 - Viagens - Servico de Hospedagem","3.329 - Viagens - Transporte e Locomocao","3.330 - Taxas, Licencas e Anuidades Regulatorias","3.331 - Servico de Limpeza","3.332 - Parcela Imovel Proprio (equiv. Aluguel)"],"3.2 - DESPESAS COM PESSOAL":["3.201 - Salario - Fonoaudiologia (C)","3.202 - Salario - Psicologa (C)","3.203 - Salarios (D)","3.204 - 13º Salario (D)","3.205 - Ferias (D)","3.206 - Vale Alimentacao (D)","3.207 - Vale Transporte (D)","3.208 - Uniforme (D)","3.209 - Cursos e Treinamentos (D)","3.210 - Exames Admissional/Demissional","3.211 - FGTS (D)","3.212 - Gratificacao (D)","3.213 - Vale Manicure (D)","3.214 - INSS/IRRF (D)","3.215 - Estagiarios (D)","3.216 - Rescisao","3.217 - Beneficios Exames-Medicos com Coparticipacao"],"3.3 - DESPESAS DE VENDAS E MARKETING":["3.301 - Jessica (Stories)","3.302 - Agencia Experience (Conteudo)","3.303 - Agencia Coqueiro Midia (CRM/IA)","3.304 - Mensalidade Chat OpenAI IA","3.305 - Ornamentacao/Eventos","3.306 - Brindes","3.307 - Patrocinios","3.308 - Publicidade - Meta Ads - Trafego","3.309 - Outdoors"],"3.4 - DESPESAS FINANCEIRAS":["3.402 - Juros sobre Emprestimos/Financ/ChequeEspecial","3.403 - Tarifas Bancarias","3.404 - Taxas de Cartão de Credito/Debito (MDR + Antecipacao)","3.405 - Juros/Multa de atraso a Fornecedores","3.406 - Anuidade Cartao de Credito Empresarial","3.407 - IOF sobre operacoes de credito"],"4.1 - INVESTIMENTOS":["4.401 - Móveis e Utensílios ","4.403 - Máquinas e Equipamentos","4.404 - Sistema de Energia Solar","4.405 - Obras/Projeto Arquitetonico","4.406 - Integralização Capital Unicred"],"5.1 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["5.502 - Distribuicao de Lucros","5.503 - Quitacao Cheque Especial (Saida)","5.505 - Financiamento - Pronampe","5.506 - Pagamento de Mutuo a Socios"],"6.1 - OUTRAS DESPESAS OPERACIONAIS":["6.601 - Estornos Negativos","6.602 - Faltas de Caixa"],"7.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS":["7.701 - Repasse de Valor - Medicos","7.702 - Repasse de Valor - Terapeutas"],"1.1 - RECEITAS OPERACIONAIS (DRE)":["1.101 - Honorarios Clinicos - Medicos","1.102 - Honorários Clínicos - Terapeutas","1.103 - Receita Recebimento Notas Fiscais/Faturados","1.104 - Receita venda de Vacinas","1.105 - Receita Vendas Cartao - Rede Credito e Debito"],"1.2 - RECEITAS COMPLEMENTARES OPERACIONAIS":["1.201 - Exames e Teste - Laboratoriais ","1.202 - Venda de Ativos","1.206 - Receitas Eventuais – Estagios"],"1.3 - RECUPERACAO E AJUSTE OPERACIONAIS":["1.301 - Reembolso de Valores Exames Medicos - Colaboradores","1.302 - Valores Recebidos a Maior","1.303 - Estornos Positivos","1.304 - Creditos Recuperados"],"1.4 - RECEITAS FINANCEIRAS":["1.402 - Descontos obtidos","1.403 - Rendimentos de Aplicacoes","1.404 - Juros s/ duplicatas","1.405 - Multas"],"1.5 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["1.501 - Aporte de Capital","1.502 - Uso de Cheque Especial (entrada)","1.503 - Mutuo de Socios (Emprestimo de socios)"],"1.7 - MOVIMENTACOES TRANSITORIAS":["1.701 - Ajuste de Caixa a Regularizar","1.702 - Depositos nao Identificados","1.703 - Transferencias Transitorias","1.704 - Adiantamento a Regularizar"],"1.8 - OUTRAS RECEITAS OPERACIONAIS":["1.801 - Sobra de Caixa"],"1.9 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS":["1.901 - Valores a Repassar - Medicos","1.902 - Valores a Repassar - Terapeutas"],"10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)":["10.01 - Recebimento Pix/TED - Sinal de Consulta","10.02 - Recebimento Pix/TED - Consulta Final (Quitação)","10.03 - Recebimento Pix/TED - Terapias","10.04 - Recebimento Dinheiro Especie - Consultas/Terapias","10.05 - Recebimento Pix/TED - Convenios e Faturados","10.06 - Recebimento Cartao Liquido (Rede-Itau)","10.07 - Recebimento Pix/TED - Venda de Vacinas","10.08 - Recebimento Bruto Producao - Medicos","10.09 - Recebimento Bruto Producao - Terapeutas"]}
 
     # ── Função para carregar plano de contas de arquivo ───────────────────────
     def carregar_plano(arquivo=None):
@@ -1445,10 +1449,80 @@ elif page == "classificador":
             st.warning(f"Não foi possível ler o plano de contas: {e}. Usando o padrão embutido.")
             return PLANO_PADRAO.copy()
 
-    # ── Contatos embutidos ────────────────────────────────────────────────────
-    MEDICOS    = ["luciany","rossania","marilia","sarita","isadora","priscila","juliana","deodato","marcelo","marcello","airton","tarcizio","eulalio","raquel","nahara","paloma","sandra","isabela","ana camila","gisa","lia","theresa","kerolayne"]
-    TERAPEUTAS = ["andrezza","andressa","antonio","marcia","jussara","dayrla","ceciane","wanderson","iasmim","katrine","norla","rosario","alessia","leticia","narllyanna","brenda","maria stheffany","sara micaela","vitorugo","rondinara","edilene","ana karolina","thalita","vanessa","fernanda","lysslly","savia","jamille","elane","francisca","gigi","karem"]
+    # ── Base de profissionais parceiros ─────────────────────────────────────
+    PROFISSIONAIS_DB = [{"nome": "Luciany Martins Chaves", "chaves": ["luciany", "chaves"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "Antonio Clayton Almeida de Araujo", "chaves": ["antonio", "clayton", "almeida", "araujo"], "eh_medico": false, "tipo": "Terapeuta - Terapia Ocupacional"}, {"nome": "Rossania Marcedo", "chaves": ["rossania", "marcedo"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "Thalita Nutri", "chaves": ["thalita", "nutri"], "eh_medico": false, "tipo": "Terapeuta - Nutricionista"}, {"nome": "VANESSA NEUROPSICO", "chaves": ["vanessa", "neuropsico"], "eh_medico": false, "tipo": "Terapeuta - Neuropsicopedagogia"}, {"nome": "Jussara Arrais Basto", "chaves": ["jussara", "arrais", "basto"], "eh_medico": false, "tipo": "Terapeuta - Fonoaudiologia"}, {"nome": "Marcia Karina Carvalho", "chaves": ["marcia", "karina"], "eh_medico": false, "tipo": "Terapeuta - Psicomotricista - T.O"}, {"nome": "Marilia Mendes de Sousa", "chaves": ["marilia"], "eh_medico": true, "tipo": "Medico - Gastropediatria"}, {"nome": "ANTONIO CESAR - Psico", "chaves": ["antonio", "cesar"], "eh_medico": false, "tipo": "Terapeuta - Psicomotricista - T.O"}, {"nome": "Deodato Narciso de Oliveira Castro Neto", "chaves": ["deodato", "narciso", "castro"], "eh_medico": true, "tipo": "Medico - Ortopedia Pediátrica"}, {"nome": "ANDRESSA Psicóloga", "chaves": ["andressa", "psicologa"], "eh_medico": false, "tipo": "Terapeuta - Psicologia"}, {"nome": "TARCIZIO BRITO SANTOS", "chaves": ["tarcizio", "brito"], "eh_medico": true, "tipo": "Medico - Neuropediatra"}, {"nome": "EULALIO DAMAZIO DA SILVA JUNIOR", "chaves": ["eulalio", "damazio"], "eh_medico": true, "tipo": "Medico - Urologia"}, {"nome": "Jamires - EletroEncefalograma", "chaves": ["jamires"], "eh_medico": false, "tipo": "Terapeuta - Exame - EEG"}, {"nome": "ISABELA  LIMA DE ABREU", "chaves": ["isabela", "abreu"], "eh_medico": true, "tipo": "Medico - Neuropediatra"}, {"nome": "PRISCILA FAVORITTO LOPES", "chaves": ["priscila", "favoritto"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "KATRINE - Psico", "chaves": ["katrine"], "eh_medico": false, "tipo": "Terapeuta - Neuropsicologia"}, {"nome": "Maria Stheffany Rocha Halabi", "chaves": ["maria", "stheffany", "halabi"], "eh_medico": false, "tipo": "Terapeuta - Psicologia"}, {"nome": "RAQUEL PAIVA ARRUDA", "chaves": ["raquel", "paiva"], "eh_medico": true, "tipo": "Medico - Neuropediatra"}, {"nome": "Rondinara Sousa Amaral", "chaves": ["rondinara", "amaral"], "eh_medico": false, "tipo": "Terapeuta - Neuropsicopedagogia"}, {"nome": "Iasmim Barbosa dos Santos", "chaves": ["iasmim", "barbosa"], "eh_medico": false, "tipo": "Terapeuta - Psicopedagoga"}, {"nome": "Norla Albuquerque", "chaves": ["norla", "albuquerque"], "eh_medico": false, "tipo": "Terapeuta - Neuropsicopedagogia"}, {"nome": "MARIA DO ROSARIO - Fono", "chaves": ["maria", "rosario"], "eh_medico": false, "tipo": "Terapeuta - Fonoaudiologia"}, {"nome": "Alessia Maria Guimarães", "chaves": ["alessia", "maria", "guimaraes"], "eh_medico": false, "tipo": "Terapeuta - Fisioterapia"}, {"nome": "NAHARA LIMA JUREMA", "chaves": ["nahara", "jurema"], "eh_medico": true, "tipo": "Medico - Neuropediatra"}, {"nome": "BRENDA DOS SANTOS DE SOUSA", "chaves": ["brenda"], "eh_medico": false, "tipo": "Terapeuta - Psicologia"}, {"nome": "Sarita Sousa Bastos", "chaves": ["sarita", "bastos"], "eh_medico": true, "tipo": "Medico - Endocrinologia"}, {"nome": "FRANCISCA DAS CHAGAS ROCHA DE OLIVEIRA", "chaves": ["francisca", "chagas"], "eh_medico": false, "tipo": "Terapeuta - Neuropsicologia"}, {"nome": "AIRTON - Pediatra", "chaves": ["airton"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "Jose Wanderson Fortes de OLiveira", "chaves": ["jose", "wanderson", "fortes"], "eh_medico": false, "tipo": "Terapeuta - Musicoterapia Infantil"}, {"nome": "LETICIA DO VAL LEÓDIDO", "chaves": ["leticia", "leodido"], "eh_medico": false, "tipo": "Terapeuta - Nutricionista"}, {"nome": "Narllyanna Farias Lira da Silva", "chaves": ["narllyanna", "farias", "lira"], "eh_medico": false, "tipo": "Terapeuta - Nutricionista"}, {"nome": "ANA CAMILA MARTINS MUNIZ", "chaves": ["camila", "muniz"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "PALOMA SANTANA", "chaves": ["paloma", "santana"], "eh_medico": true, "tipo": "Medico - Pneumologista"}, {"nome": "ENDOANÁLISES", "chaves": ["endoanalises"], "eh_medico": false, "tipo": "Terapeuta - Exame - EEG"}, {"nome": "FERNANDA", "chaves": ["fernanda"], "eh_medico": false, "tipo": "Profissional da Saúde"}, {"nome": "LYSLLY", "chaves": ["lyslly"], "eh_medico": false, "tipo": "Profissional da Saúde"}, {"nome": "MARILIA NUTRICIONISTA", "chaves": ["marilia", "nutricionista"], "eh_medico": false, "tipo": "Terapeuta - Nutricionista"}, {"nome": "Sara Micaela Bezerra", "chaves": ["sara", "micaela", "bezerra"], "eh_medico": false, "tipo": "Terapeuta - Nutricionista"}, {"nome": "SAVIA NUNES PINTO", "chaves": ["savia", "nunes"], "eh_medico": false, "tipo": "Profissional da Saúde"}, {"nome": "Ana Maria Cortez de Castro", "chaves": ["maria", "cortez", "castro"], "eh_medico": false, "tipo": "Terapeuta - Neuropsicologia"}, {"nome": "Marcia Adriana Fonseca de Sousa", "chaves": ["marcia", "adriana", "fonseca"], "eh_medico": false, "tipo": "Terapeuta - Terapia Ocupacional"}, {"nome": "Isadora Maria Oliveira Nunes B. de Carvalho", "chaves": ["isadora", "maria", "nunes"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "Juliana Alencar", "chaves": ["juliana", "alencar"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "Vitorugo dos Santos Rocha", "chaves": ["vitorugo"], "eh_medico": false, "tipo": "Terapeuta - Fisioterapia"}, {"nome": "Francisca Girlane Silva de Araujo - (Gigi)", "chaves": ["francisca", "girlane", "araujo"], "eh_medico": false, "tipo": "Terapeuta - Nutricionista"}, {"nome": "Theresa Kerolayne", "chaves": ["theresa", "kerolayne"], "eh_medico": true, "tipo": "Medico - Psiquiatra"}, {"nome": "Marcello Roberto Leite Soares FIlho", "chaves": ["marcello", "roberto", "leite"], "eh_medico": true, "tipo": "Medico - Neuropediatra"}, {"nome": "Jamille dos Santos Silva de Lima", "chaves": ["jamille"], "eh_medico": false, "tipo": "Terapeuta - Neuropsicopedagogia"}, {"nome": "Elane Sena de Ferreira", "chaves": ["elane", "sena"], "eh_medico": false, "tipo": "Terapeuta - Nutricionista"}, {"nome": "Edilene Soares da Costa", "chaves": ["edilene"], "eh_medico": false, "tipo": "Terapeuta - Terapia Ocupacional"}, {"nome": "Gisa Sampaio", "chaves": ["gisa", "sampaio"], "eh_medico": true, "tipo": "Medico - Otorrino"}, {"nome": "Dra Sandra", "chaves": ["sandra"], "eh_medico": true, "tipo": "Medico - Pediatria"}, {"nome": "Dayrla Fernandes - Clinica de Fonoaudiologia", "chaves": ["dayrla", "fernandes"], "eh_medico": false, "tipo": "Terapeuta - Fonoaudiologia"}, {"nome": "Espaco Andrezza Lopes", "chaves": ["espaco", "andrezza"], "eh_medico": false, "tipo": "Terapeuta - Psicologia"}, {"nome": "Clinica Fonocenter - Cecicane Coelho", "chaves": ["clinica", "fonocenter"], "eh_medico": false, "tipo": "Terapeuta - Fonoaudiologia"}, {"nome": "Unimed", "chaves": ["unimed"], "eh_medico": false, "tipo": "Plano de Saúde"}, {"nome": "Ana Karolina de Oliveira Lima LTDA", "chaves": ["karolina"], "eh_medico": false, "tipo": "Terapeuta - Fonoaudiologia"}, {"nome": "Laboratorio de Analises Clinicas Especializadas de Parnaiba LTDA", "chaves": ["laboratorio", "analises", "clinicas", "especializadas", "parnaiba"], "eh_medico": false, "tipo": "Terapeuta - Exame - EEG"}, {"nome": "Lia Kakel", "chaves": ["kakel"], "eh_medico": true, "tipo": "Medico - Pediatria"}]
+
+    # Listas de nomes (palavras-chave curtas) para detecção rápida
+    MEDICOS    = [norm_p(p["nome"].split()[0]) for p in PROFISSIONAIS_DB if p["eh_medico"]]
+    TERAPEUTAS = [norm_p(p["nome"].split()[0]) for p in PROFISSIONAIS_DB if not p["eh_medico"]]
     PESSOAL    = ["cacilene","kacilene","iara","jessica pinto","simone","vanderlene","gleicyelle","gleycyelle","maria cacilene"]
+
+    # Apelidos manuais → nome exato na base
+    APELIDOS_PROF = {
+        "gigi": "Francisca Girlane Silva de Araujo - (Gigi)",
+        "andrezza lopes": "Espaco Andrezza Lopes",
+        "espaco andrezza": "Espaco Andrezza Lopes",
+        "cecicane": "Clinica Fonocenter - Cecicane Coelho",
+        "fonocenter": "Clinica Fonocenter - Cecicane Coelho",
+        "jamires": "Jamires - EletroEncefalograma",
+        "eeg": "Jamires - EletroEncefalograma",
+        "endoanalise": "ENDOANÁLISES",
+        "laboratorio": "Laboratorio de Analises Clinicas Especializadas de Parnaiba LTDA",
+        "unimed": "Unimed",
+        "lia": "Lia Kakel",
+        "kakel": "Lia Kakel",
+        "rosario": "MARIA DO ROSARIO - Fono",
+        "katrine": "KATRINE - Psico",
+        "airton": "AIRTON - Pediatra",
+        "andressa psicol": "ANDRESSA Psicóloga",
+        "lyslly": "LYSLLY",
+        "lysslly": "LYSLLY",
+        "savia": "SAVIA NUNES PINTO",
+        "thalita": "Thalita Nutri",
+    }
+
+    # Stop words para match heurístico
+    _STOP_PROF = {"de","da","do","dos","das","filho","filha","ltda","junior","neto",
+                  "sousa","santos","silva","lima","rocha","costa","pinto","lopes",
+                  "soares","alves","ferreira","oliveira","martins","carvalho","mendes",
+                  "arruda","basto","brito","paiva","farias","alencar","sampaio","kakel"}
+    _TITULOS_PROF = {"dra","dr","dr.","dra."}
+
+    def resolver_profissional_heuristico(contato_input):
+        """
+        Resolve contato do Caixinha para nome exato da base de profissionais.
+        Retorna (nome_exato, eh_medico) ou (None, None) se não encontrar.
+        Estratégia:
+        1. Apelidos diretos
+        2. Match por palavra exata (len >= 4, não stop word)
+        """
+        import unicodedata as _ud, re as _re
+        def _n(s): return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
+
+        c = _n(contato_input)
+        # Remove títulos
+        for t in sorted(_TITULOS_PROF, key=len, reverse=True):
+            c = _re.sub(rf'^{t}\s+', '', c)
+        c = _re.sub(r'[-–].*', '', c).strip()
+
+        # Apelidos
+        for apelido, nome_exato in APELIDOS_PROF.items():
+            if _n(apelido) in c:
+                prof = next((p for p in PROFISSIONAIS_DB if _n(p["nome"]) == _n(nome_exato)), None)
+                if prof: return prof["nome"], prof["eh_medico"]
+
+        # Match por palavras exatas
+        palavras_input = [w for w in c.split() if len(w) >= 4 and w not in _STOP_PROF]
+        melhor = None; melhor_score = 0
+        for prof in PROFISSIONAIS_DB:
+            palavras_base = set(prof["chaves"])
+            score = sum(1 for w in palavras_input if w in palavras_base)
+            if score > melhor_score:
+                melhor_score = score; melhor = prof
+
+        if melhor and melhor_score >= 1:
+            return melhor["nome"], melhor["eh_medico"]
+        return None, None
 
     # ── Regras base ───────────────────────────────────────────────────────────
     REGRAS_BASE = [
@@ -1999,7 +2073,7 @@ elif page == "classificador":
         CONTA_PADRAO_CAIXINHA = "Caixinha 2025;2026"
 
         # ── Detecta se lançamento é Transferência entre contas ────────────────
-        TODOS_PROFISSIONAIS = MEDICOS + TERAPEUTAS + PESSOAL
+        TODOS_PROFISSIONAIS = MEDICOS + TERAPEUTAS + PESSOAL + [norm_p(p['nome'].split()[0]) for p in PROFISSIONAIS_DB]
 
         # Palavras que indicam DESPESA/MOVIMENTAÇÃO direta mesmo com profissional no contato
         # Normalizadas sem acento para comparação robusta
@@ -2141,17 +2215,25 @@ elif page == "classificador":
                         cats.append(cat); subs.append(sub); confs.append(conf)
                 ja_exp_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
 
-                # Resolve contato — só para Receita/Despesa
+                # Resolve contato
                 tipo_final = tipos[-1]
+                contato_raw = str(row.get("Contato","")).strip()
                 if tipo_final == "Transferência":
                     contatos_md.append("")
                     status_contatos.append("transf")
                 else:
-                    nome_res, status_res = resolver_contato(
-                        str(row.get("Contato","")), mapa_contatos, base_md
-                    )
-                    contatos_md.append(nome_res)
-                    status_contatos.append(status_res)
+                    # 1. Tenta match heurístico na base de profissionais
+                    nome_prof, _ = resolver_profissional_heuristico(contato_raw)
+                    if nome_prof:
+                        contatos_md.append(nome_prof)
+                        status_contatos.append("auto")
+                    else:
+                        # 2. Fallback: dicionário manual + base MD
+                        nome_res, status_res = resolver_contato(
+                            contato_raw, mapa_contatos, base_md
+                        )
+                        contatos_md.append(nome_res)
+                        status_contatos.append(status_res)
 
             df_work["Tipo Lançamento"]  = tipos
             df_work["Conta Destino"]    = contas_dest
