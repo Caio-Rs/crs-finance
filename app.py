@@ -2404,7 +2404,7 @@ elif page == "classificador":
                 nome_limpo = " ".join(w for w in contato.split() if w.lower().rstrip(".") not in ("dra","dr")).strip()
 
                 if tipo == "Transferência":
-                    # Descrição: "Cx Luciany 01/04/2026" / "Fusma Norla fevereiro"
+                    # Transferência pura: conta destino preenchida, sem categoria
                     desc_lower = descricao.lower()
                     if "cx do dia" in desc_lower or "cx dia" in desc_lower:
                         prefixo = "Cx"
@@ -2420,15 +2420,35 @@ elif page == "classificador":
                     cat_export     = ""
                     sub_export     = ""
                     contato_export = ""  # vazio nas transferências
+
                 elif tipo == "Receita":
-                    desc_export    = descricao
+                    # Receita direta (inclui 10.08/10.09 de Cx do dia com médico/terapeuta)
+                    # Descrição enriquecida com nome do profissional se vier de Cx do dia
+                    desc_lower = descricao.lower()
+                    if any(p in desc_lower for p in ["cx do dia","cx dia","fechamento cx"]) and nome_limpo:
+                        if "cx do dia" in desc_lower or "cx dia" in desc_lower:
+                            prefixo = "Cx"
+                        else:
+                            prefixo = "Fechamento Cx"
+                        desc_export = f"{prefixo} {nome_limpo} {data}".strip()
+                    else:
+                        desc_export = descricao
                     valor_str      = fmt_num(val_e, negativo=False)
                     conta_transf   = ""
                     cat_export     = cat
                     sub_export     = sub
                     contato_export = contato_md_clean or contato
-                else:  # Despesa
-                    desc_export    = descricao
+
+                else:  # Despesa (inclui 20.01/20.02 de Cx do dia saída)
+                    desc_lower = descricao.lower()
+                    if any(p in desc_lower for p in ["cx do dia","cx dia","fechamento cx"]) and nome_limpo:
+                        if "cx do dia" in desc_lower or "cx dia" in desc_lower:
+                            prefixo = "Cx"
+                        else:
+                            prefixo = "Fechamento Cx"
+                        desc_export = f"{prefixo} {nome_limpo} {data}".strip()
+                    else:
+                        desc_export = descricao
                     valor_str      = fmt_num(val_s, negativo=True)
                     conta_transf   = ""
                     cat_export     = cat
