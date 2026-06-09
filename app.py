@@ -1726,10 +1726,11 @@ elif page == "classificador":
         st.markdown('<div class="page-sub">Gerencie categorias (mãe) e subcategorias (filhas) do plano de contas.</div>', unsafe_allow_html=True)
 
         # ── Helpers para carregar/salvar plano no session_state ───────────────
+        _plano_ref = PLANO_PADRAO  # captura no momento da definição
         def get_plano():
             if "_plano_carregado" in st.session_state:
                 return json.loads(st.session_state["_plano_carregado"])
-            return PLANO_PADRAO.copy()
+            return _plano_ref.copy()
 
         def set_plano(p):
             st.session_state["_plano_carregado"] = json.dumps(p, ensure_ascii=False)
