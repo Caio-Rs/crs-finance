@@ -73,25 +73,23 @@ html, body, [class*="css"], .stApp {
 [data-testid="stDataFrameResizable"] { border: 0.5px solid #253550 !important; border-radius: 10px !important; }
 [data-testid="stDataFrameResizable"] [role="gridcell"] { color: #e2e8f0 !important; }
 [data-testid="stDataFrameResizable"] [role="columnheader"] { background: #1B2A4A !important; color: #C9A84C !important; font-size: 0.72rem !important; letter-spacing: 0.05em !important; }
-/* ── Dropdown / Popover — fundo branco, texto PRETO em todos os estados ── */
-[data-baseweb="popover"],
-[data-baseweb="popover"] *,
-[data-baseweb="menu"],
-[data-baseweb="menu"] *,
-[data-baseweb="select"] [data-baseweb="popover"],
-[data-baseweb="select"] [data-baseweb="popover"] *,
-body > div[data-baseweb="popover"],
-body > div[data-baseweb="popover"] * {
+/* ── Dropdown / Popover — ALTA ESPECIFICIDADE para vencer o emotion CSS ── */
+/* Especificidade mínima (0,3,1) garante vitória sobre regras emotion (0,2,0) */
+html body [data-baseweb="popover"],
+html body [data-baseweb="popover"] *,
+html body [data-baseweb="menu"],
+html body [data-baseweb="menu"] * {
     background-color: #ffffff !important;
     color: #111827 !important;
 }
-[data-baseweb="popover"] {
+html body [data-baseweb="popover"] {
     border: 2px solid #1B2A4A !important;
     border-radius: 8px !important;
     box-shadow: 0 8px 24px rgba(0,0,0,0.35) !important;
 }
-[data-baseweb="popover"] [role="option"],
-[data-baseweb="menu"] li {
+/* Opções individuais (especificidade 0,3,1) */
+html body [data-baseweb="popover"] [data-baseweb="menu"] [role="option"],
+html body [data-baseweb="popover"] [data-baseweb="menu"] li {
     background-color: #ffffff !important;
     color: #111827 !important;
     font-size: 13px !important;
@@ -99,21 +97,35 @@ body > div[data-baseweb="popover"] * {
     padding: 8px 14px !important;
     border-bottom: 0.5px solid #f0f0f0 !important;
 }
-[data-baseweb="popover"] [role="option"]:hover,
-[data-baseweb="popover"] [role="option"]:hover *,
-[data-baseweb="menu"] li:hover,
-[data-baseweb="menu"] li:hover * {
+/* Filhos das opções */
+html body [data-baseweb="popover"] [data-baseweb="menu"] [role="option"] *,
+html body [data-baseweb="popover"] [data-baseweb="menu"] li * {
+    background-color: transparent !important;
+    color: #111827 !important;
+}
+/* Hover (especificidade 0,3,2) */
+html body [data-baseweb="popover"] [data-baseweb="menu"] [role="option"]:hover,
+html body [data-baseweb="popover"] [data-baseweb="menu"] li:hover {
     background-color: #eff6ff !important;
     color: #111827 !important;
 }
-[data-baseweb="popover"] [aria-selected="true"],
-[data-baseweb="popover"] [aria-selected="true"] * {
-    background-color: #dbeafe !important;
+html body [data-baseweb="popover"] [data-baseweb="menu"] [role="option"]:hover *,
+html body [data-baseweb="popover"] [data-baseweb="menu"] li:hover * {
     color: #111827 !important;
+}
+/* Selecionado/ativo — especificidade (0,4,1) vence tudo */
+html body [data-baseweb="popover"] [data-baseweb="menu"] [role="option"][aria-selected="true"],
+html body [data-baseweb="popover"] [data-baseweb="menu"] li[aria-selected="true"] {
+    background-color: #dbeafe !important;
+    color: #1e40af !important;
     font-weight: 600 !important;
 }
-[data-baseweb="popover"] input,
-[data-baseweb="popover"] input * {
+html body [data-baseweb="popover"] [data-baseweb="menu"] [role="option"][aria-selected="true"] *,
+html body [data-baseweb="popover"] [data-baseweb="menu"] li[aria-selected="true"] * {
+    color: #1e40af !important;
+}
+/* Input de busca dentro do popover */
+html body [data-baseweb="popover"] input {
     background-color: #f9fafb !important;
     color: #111827 !important;
     border: 1.5px solid #cbd5e1 !important;
