@@ -77,7 +77,11 @@ html, body, [class*="css"], .stApp {
 [data-baseweb="popover"],
 [data-baseweb="popover"] *,
 [data-baseweb="menu"],
-[data-baseweb="menu"] * {
+[data-baseweb="menu"] *,
+[data-baseweb="select"] [data-baseweb="popover"],
+[data-baseweb="select"] [data-baseweb="popover"] *,
+body > div[data-baseweb="popover"],
+body > div[data-baseweb="popover"] * {
     background-color: #ffffff !important;
     color: #111827 !important;
 }
