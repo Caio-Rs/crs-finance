@@ -73,16 +73,49 @@ html, body, [class*="css"], .stApp {
 [data-testid="stDataFrameResizable"] { border: 0.5px solid #253550 !important; border-radius: 10px !important; }
 [data-testid="stDataFrameResizable"] [role="gridcell"] { color: #e2e8f0 !important; }
 [data-testid="stDataFrameResizable"] [role="columnheader"] { background: #1B2A4A !important; color: #C9A84C !important; font-size: 0.72rem !important; letter-spacing: 0.05em !important; }
-[data-baseweb="popover"] { background-color: #ffffff !important; border: 2px solid #1B2A4A !important; border-radius: 8px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important; }
-[data-baseweb="popover"] div,[data-baseweb="popover"] ul,[data-baseweb="popover"] li,[data-baseweb="popover"] span,[data-baseweb="popover"] p { background-color: #ffffff !important; color: #111827 !important; }
-[data-baseweb="popover"] [role="option"] { background-color: #ffffff !important; color: #111827 !important; font-size: 13px !important; font-weight: 400 !important; padding: 8px 14px !important; border-bottom: 0.5px solid #e5e7eb !important; }
-[data-baseweb="popover"] [role="option"]:hover { background-color: #dbeafe !important; color: #1B2A4A !important; }
-[data-baseweb="popover"] [aria-selected="true"],[data-baseweb="popover"] [aria-selected="true"] * { background-color: #1B2A4A !important; color: #C9A84C !important; font-weight: 600 !important; }
-[data-baseweb="menu"] { background-color: #ffffff !important; }
-[data-baseweb="menu"] ul { background-color: #ffffff !important; }
-[data-baseweb="menu"] li,[data-baseweb="menu"] li * { color: #111827 !important; background-color: #ffffff !important; font-size: 13px !important; }
-[data-baseweb="menu"] li:hover,[data-baseweb="menu"] li:hover * { background-color: #dbeafe !important; color: #1B2A4A !important; }
-[data-baseweb="popover"] input { background-color: #f9fafb !important; color: #111827 !important; border: 1.5px solid #1B2A4A !important; border-radius: 6px !important; font-size: 13px !important; }
+/* ── Dropdown / Popover — fundo branco, texto PRETO em todos os estados ── */
+[data-baseweb="popover"],
+[data-baseweb="popover"] *,
+[data-baseweb="menu"],
+[data-baseweb="menu"] * {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+}
+[data-baseweb="popover"] {
+    border: 2px solid #1B2A4A !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35) !important;
+}
+[data-baseweb="popover"] [role="option"],
+[data-baseweb="menu"] li {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    padding: 8px 14px !important;
+    border-bottom: 0.5px solid #f0f0f0 !important;
+}
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="popover"] [role="option"]:hover *,
+[data-baseweb="menu"] li:hover,
+[data-baseweb="menu"] li:hover * {
+    background-color: #eff6ff !important;
+    color: #111827 !important;
+}
+[data-baseweb="popover"] [aria-selected="true"],
+[data-baseweb="popover"] [aria-selected="true"] * {
+    background-color: #dbeafe !important;
+    color: #111827 !important;
+    font-weight: 600 !important;
+}
+[data-baseweb="popover"] input,
+[data-baseweb="popover"] input * {
+    background-color: #f9fafb !important;
+    color: #111827 !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+}
 .stTextInput input, .stNumberInput input, .stSelectbox > div > div { background: #162236 !important; border: 0.5px solid #253550 !important; color: #e2e8f0 !important; border-radius: 8px !important; }
 label { color: #8899BB !important; font-size: 0.82rem !important; }
 .action-btn > button { background: #C9A84C !important; color: #1B2A4A !important; border: none !important; font-weight: 700 !important; border-radius: 8px !important; padding: 0.55rem 1.5rem !important; }
