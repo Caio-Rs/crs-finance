@@ -1557,6 +1557,69 @@ elif page == "classificador":
             df_re.at[i, "_status_contato"] = status_res
         st.session_state["df_classificado"] = df_re
 
+    def carregar_matriz_plano():
+        try:
+            dados = st.session_state.get("_matriz_plano", None)
+            if dados:
+                return json.loads(dados)
+        except Exception:
+            pass
+        return []
+
+    def salvar_matriz_plano(registros):
+        st.session_state["_matriz_plano"] = json.dumps(registros, ensure_ascii=False)
+
+    def buscar_categoria_matriz(contato_md, tipo_mov, matriz):
+        """
+        Busca Categoria + Subcategoria na Matriz do Plano de Contas.
+        tipo_mov: 'E' para entrada, 'S' para saída.
+        Camada 1: match exato (ou multi-nome separado por ' ou ').
+        Camada 2: word match com palavras >= 6 chars (trata abreviações/variações).
+        """
+        if not matriz:
+            return "", ""
+        import unicodedata as _ud2
+        def _nm(s):
+            s = str(s).lower().strip().replace('/', ' ')
+            return ''.join(c for c in _ud2.normalize('NFD', s) if _ud2.category(c) != 'Mn')
+        contato_n = _nm(contato_md)
+        tipo_n    = "entrada" if tipo_mov == "E" else "saida"
+        GENERICOS = {
+            'cliente variavel', 'variacao de terapeutas', 'cliente variavel ',
+            'variacao de medicos', 'variacao de medicos ', 'contas da clinica', ''
+        }
+
+        # Câmada 1: match exato — suporta "Nome A ou Nome B" na Matriz
+        for reg in matriz:
+            cf_raw = reg.get("cf", "")
+            tp_n   = _nm(reg.get("tipo_es", ""))
+            if tipo_n not in tp_n:
+                continue
+            cf_variants = [_nm(v.strip()) for v in cf_raw.split(" ou ")]
+            if any(v in GENERICOS for v in cf_variants):
+                continue
+            if contato_n in cf_variants:
+                return reg.get("cat", ""), reg.get("sub", "")
+
+        # Camada 2: word match (palavras >= 6 chars, score >= 1)
+        # Cobre abreviações: "Andrezza L A Lopes" ≈ "Andrezza Luzia Alves Lopes"
+        palavras_md = [w for w in contato_n.split() if len(w) >= 6]
+        if palavras_md:
+            for reg in matriz:
+                cf_raw = reg.get("cf", "")
+                tp_n   = _nm(reg.get("tipo_es", ""))
+                if tipo_n not in tp_n:
+                    continue
+                cf_variants = [_nm(v.strip()) for v in cf_raw.split(" ou ")]
+                if any(v in GENERICOS for v in cf_variants):
+                    continue
+                for cf_v in cf_variants:
+                    palavras_cf = set(cf_v.split())
+                    if sum(1 for p in palavras_md if p in palavras_cf) >= 1:
+                        return reg.get("cat", ""), reg.get("sub", "")
+
+        return "", ""
+
     def resolver_contato(contato_input, mapa, base_md):
         """
         Resolve contato do input para nome exato do Meu Dinheiro.
@@ -2231,24 +2294,30 @@ elif page == "classificador":
                     tipo_fin = "Receita" if tmov == "E" else "Despesa"
                     tipos.append(tipo_fin)
                     contas_dest.append("")
-                    if ja_exp:
-                        cats.append(""); subs.append(""); confs.append("✅ Exportado")
-                    else:
-                        cat, sub, conf = classificar(contato, descricao, tmov, regras_aprendidas)
-                        cats.append(cat); subs.append(sub); confs.append(conf)
-                ja_exp_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
-
-                # Resolve contato — só para Receita/Despesa
-                tipo_final = tipos[-1]
-                if tipo_final == "Transferência":
-                    contatos_md.append("")
-                    status_contatos.append("transf")
-                else:
+                    # Resolve contato ANTES para usar no lookup da Matriz
                     nome_res, status_res = resolver_contato(
                         str(row.get("Contato","")), mapa_contatos, base_md
                     )
                     contatos_md.append(nome_res)
                     status_contatos.append(status_res)
+                    if ja_exp:
+                        cats.append(""); subs.append(""); confs.append("✅ Exportado")
+                    else:
+                        cat, sub, conf = classificar(contato, descricao, tmov, regras_aprendidas)
+                        # Se regras existentes não encontraram → tenta Matriz do Plano
+                        if conf == "Manual":
+                            matriz_plano = carregar_matriz_plano()
+                            cat_m, sub_m = buscar_categoria_matriz(nome_res, tmov, matriz_plano)
+                            if cat_m:
+                                cat, sub, conf = cat_m, sub_m, "Matriz"
+                        cats.append(cat); subs.append(sub); confs.append(conf)
+                ja_exp_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
+
+                # Transferências: resolve contato separado
+                tipo_final = tipos[-1]
+                if tipo_final == "Transferência":
+                    contatos_md.append("")
+                    status_contatos.append("transf")
 
             df_work["Tipo Lançamento"]  = tipos
             df_work["Conta Destino"]    = contas_dest
@@ -2274,14 +2343,16 @@ elif page == "classificador":
         alta      = (df_class["Confiança"]=="Alta").sum()
         aprend    = (df_class["Confiança"]=="Aprendida").sum()
         manual    = (df_class[~df_class["Status Export"].str.contains("Sim")]["Confiança"]=="Manual").sum()
+        matriz_c  = (df_class["Confiança"]=="Matriz").sum()
 
-        m1,m2,m3,m4,m5 = st.columns(5)
+        m1,m2,m3,m4,m5,m6 = st.columns(6)
         for col,lbl,val,cls in [
             (m1,"Total",str(len(df_class)),""),
             (m2,"Já exportados",str(total_exp),"green"),
             (m3,"Novos",str(total_nov),"amber" if total_nov>0 else "green"),
             (m4,"Aprendidas",str(aprend),"green"),
-            (m5,"Revisão manual",str(manual),"red" if manual>0 else "green"),
+            (m5,"Matriz",str(matriz_c),"green" if matriz_c>0 else ""),
+            (m6,"Revisão manual",str(manual),"red" if manual>0 else "green"),
         ]:
             col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
 
@@ -2596,6 +2667,33 @@ elif page == "classificador":
             )
         else:
             st.markdown('<div style="font-size:0.8rem;color:#8899BB;margin-bottom:12px;">Nenhuma base carregada — apenas dicionário manual será usado.</div>', unsafe_allow_html=True)
+
+        # ── Upload Matriz do Plano de Contas ─────────────────────────────
+        st.markdown("**Matriz do Plano de Contas**")
+        st.caption("Importe o arquivo XLSX com a aba MATRIZ (regras de classificação por contato). Atualize quando houver novos profissionais ou categorias.")
+        f_matriz = st.file_uploader(" ", type=["xlsx","xls"], key="matriz_plano_upload", label_visibility="collapsed")
+        if f_matriz:
+            try:
+                df_mtz = pd.read_excel(f_matriz, sheet_name="MATRIZ")
+                registros = []
+                for _, row_m in df_mtz.iterrows():
+                    cf  = str(row_m.get("CLIENTE/FORNECEDOR", "")).strip()
+                    cat = str(row_m.get("CATEGORIA ", row_m.get("CATEGORIA", ""))).strip()
+                    sub = str(row_m.get("SUBCATEGORIA", "")).strip()
+                    tes = str(row_m.get("TIPO (ENTRADA/SAIDA/TRANFERENCIA)", "")).strip()
+                    if cat and cat != "nan":
+                        registros.append({"cf": cf, "cat": cat, "sub": sub, "tipo_es": tes})
+                salvar_matriz_plano(registros)
+                st.success(f"✅ Matriz carregada: {len(registros)} regras de classificação!")
+            except Exception as e:
+                st.warning(f"Erro ao ler Matriz: {e}")
+        n_mtz = len(carregar_matriz_plano())
+        if n_mtz > 0:
+            st.markdown(
+                f'<div style="font-size:0.8rem;color:#C9A84C;margin-bottom:12px;">'
+                f'📊 Matriz ativa: <strong>{n_mtz}</strong> regras carregadas</div>',
+                unsafe_allow_html=True
+            )
 
         st.markdown("---")
 
