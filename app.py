@@ -2223,13 +2223,13 @@ elif page == "classificador":
         def detectar_tipo_lancamento(contato, descricao):
             """
             Retorna (tipo, conta_destino):
-            - "Transferência" + "Fechamento de caixa 2025;2026"  → Cx do dia / fechamento
-            - "Receita" / "Despesa" + ""                          → lançamento direto
+            - "Transferência" + conta   → movimentação real entre contas bancárias
+            - None, ""                   → Receita ou Despesa por sinal (classificado pela Matriz)
 
-            Regras em ordem de prioridade:
-            1. "Cx do dia" ou "Fechamento Cx" na descrição → sempre Transferência
-            2. Profissional no contato + descrição NÃO é despesa direta → Transferência
-            3. Qualquer outra coisa → Receita ou Despesa por sinal
+            Regras:
+            1. Contato é conta/banco → Transferência
+            2. Descrição indica fechamento entre contas → Transferência
+            3. Qualquer outra coisa (inclusive "Cx do dia" de profissional) → None → Receita/Despesa + Matriz
             """
             import unicodedata as _ud
             def _norm(s): return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
@@ -2237,21 +2237,23 @@ elif page == "classificador":
             c = _norm(contato)
             d = _norm(descricao)
 
-            # Regra 1: palavras-chave de transferência na descrição
-            # Exceção: "pago com o cx do dia" é nota de pagamento, não transferência real
-            palavras_transf = ["cx do dia","fechamento cx","fechamento de cx","cx dia"]
-            eh_transf_desc = any(p in d for p in palavras_transf)
-            eh_nota_pagto  = any(p in d for p in ["pago com","pago no cx","pago cx"])
-            if eh_transf_desc and not eh_nota_pagto:
+            # Regra 1: contato indica movimentação entre contas bancárias
+            CONTATOS_TRANSF = [
+                "mov entre contas", "movimentacao entre contas",
+                "deposito bb", "deposito itau", "deposito bradesco",
+                "deposito banco", "deposito bancario",
+                "banco do brasil deposito",
+            ]
+            if any(p in c for p in CONTATOS_TRANSF):
                 return "Transferência", "Fechamento de caixa 2025;2026"
 
-            # Regra 2: profissional no contato mas SEM palavras de despesa direta
-            eh_profissional   = any(_norm(p) in c for p in TODOS_PROFISSIONAIS)
-            eh_despesa_direta = any(_norm(p) in d for p in PALAVRAS_DESPESA_DIRETA)
-            if eh_profissional and not eh_despesa_direta:
+            # Regra 2: descrição indica fechamento real entre contas
+            # NÃO inclui "cx do dia" / "caixa do dia" — esses são Receita/Despesa de produção
+            DESCRICOES_TRANSF = ["fechamento cx", "fechamento de cx"]
+            if any(p in d for p in DESCRICOES_TRANSF):
                 return "Transferência", "Fechamento de caixa 2025;2026"
 
-            return None, ""  # será definido por sinal (E/S)
+            return None, ""  # será Receita ou Despesa por sinal → classificado pela Matriz
 
         exportados = carregar_exportados()
         n_ja_exportados = sum(1 for _, row in df_work.iterrows() if get_chave(row) in exportados)
