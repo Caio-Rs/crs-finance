@@ -1407,1430 +1407,664 @@ elif page == "conversor":
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
 # ════════════════════════════════════════════════════════════════════════════
-# 6. CLASSIFICADOR CAIXINHA — com plano de contas dinâmico + aprendizado
+# ════════════════════════════════════════════════════════════════════════════
+# 6. CLASSIFICADOR CAIXINHA — v2 · configuração persistente · fluxo direto
 # ════════════════════════════════════════════════════════════════════════════
 elif page == "classificador":
     st.markdown('<div class="page-title">Classificador Caixinha</div>', unsafe_allow_html=True)
-    st.markdown('<div class="page-sub">Classifica automaticamente os lançamentos, aprende com suas correções e aceita atualizações do plano de contas.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-sub">Processa dados brutos da caixinha e exporta no padrão do Meu Dinheiro Web.</div>', unsafe_allow_html=True)
 
-    # ── Plano de contas padrão embutido (fallback) ────────────────────────────
-    PLANO_PADRAO = {"2.1 IMPOSTOS E TAXAS":["2.101 - Simples Nacional (DAS)","2.102 - Parcelamentos de Impostos"],"2.2 DEDUCOES DE RECEITAS":["2.201 - Devolucao de vendas/Reembolso","2.202 - Descontos ","2.203 - Desembolso - Nota Fiscal","2.204 - Cancelamento/Glosas de Convenios"],"2.3 - CUSTO DIRETO COM PESSOAL (MOD)":[],"2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)":["2.401 - Teste/Vacinas para Revenda","2.402 - Material de Consumo Clinico","2.403 - Material de Protecao (EPIs)"],"20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)":["20.01 - Repasse Caixa - Medicos (% producao)","20.02 - Repasse Caixa - Terapeutas (% producao)","20.03 - Repasse Caixa - Medicos (valor fixo)","20.04 - Repasse Caixa - Terapeutas (valor fixo)"],"3.1 DESPESAS ADMINISTRATIVAS":["3.301 - Agua e Esgoto","3.302 - IPTU","3.303 - Aluguel","3.304 - Assessoria Financeira (BPO)","3.305 - Consultoria","3.306 - Cartorio","3.307 - Energia Eletrica","3.308 - Material de Escritorio","3.309 - Confraternizacao/Coffee break","3.310 - Material de Copa e Cozinha","3.311 - Material de Informatica","3.312 - Material de Limpeza","3.313 - Seguranca e Monitoramento","3.314 - Contabilidade","3.315 - Telefone e Internet","3.316 - Aluguel de Maquininha - Adquirente de Cartao","3.317 - Manutenção de Equipamento ","3.318 - Softwares e Sistemas de Gestao","3.319 - Servicos de Terceiros - Montagem e instalacoes","3.320 - Pro-labore","3.321 - Manutencao de Informatica (contrato)","3.322 - Certificados Digitais","3.323 - Frete/Transportadora","3.324 - Seguro do Imovel","3.325 - Taxas de Adesao","3.326 - Manutencao e Conservacao","3.327 - Viagens - Passagem Aerea e outros","3.328 - Viagens - Servico de Hospedagem","3.329 - Viagens - Transporte e Locomocao","3.330 - Taxas, Licencas e Anuidades Regulatorias","3.331 - Servico de Limpeza","3.332 - Parcela Imovel Proprio (equiv. Aluguel)"],"3.2 - DESPESAS COM PESSOAL":["3.201 - Salario - Fonoaudiologia (C)","3.202 - Salario - Psicologa (C)","3.203 - Salarios (D)","3.204 - 13º Salario (D)","3.205 - Ferias (D)","3.206 - Vale Alimentacao (D)","3.207 - Vale Transporte (D)","3.208 - Uniforme (D)","3.209 - Cursos e Treinamentos (D)","3.210 - Exames Admissional/Demissional","3.211 - FGTS (D)","3.212 - Gratificacao (D)","3.213 - Vale Manicure (D)","3.214 - INSS/IRRF (D)","3.215 - Estagiarios (D)","3.216 - Rescisao","3.217 - Beneficios Exames-Medicos com Coparticipacao"],"3.3 - DESPESAS DE VENDAS E MARKETING":["3.301 - Jessica (Stories)","3.302 - Agencia Experience (Conteudo)","3.303 - Agencia Coqueiro Midia (CRM/IA)","3.304 - Mensalidade Chat OpenAI IA","3.305 - Ornamentacao/Eventos","3.306 - Brindes","3.307 - Patrocinios","3.308 - Publicidade - Meta Ads - Trafego","3.309 - Outdoors"],"3.4 - DESPESAS FINANCEIRAS":["3.402 - Juros sobre Emprestimos/Financ/ChequeEspecial","3.403 - Tarifas Bancarias","3.404 - Taxas de Cartão de Credito/Debito (MDR + Antecipacao)","3.405 - Juros/Multa de atraso a Fornecedores","3.406 - Anuidade Cartao de Credito Empresarial","3.407 - IOF sobre operacoes de credito"],"4.1 - INVESTIMENTOS":["4.401 - Móveis e Utensílios ","4.403 - Máquinas e Equipamentos","4.404 - Sistema de Energia Solar","4.405 - Obras/Projeto Arquitetonico","4.406 - Integralização Capital Unicred"],"5.1 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["5.502 - Distribuicao de Lucros","5.503 - Quitacao Cheque Especial (Saida)","5.505 - Financiamento - Pronampe","5.506 - Pagamento de Mutuo a Socios"],"6.1 - OUTRAS DESPESAS OPERACIONAIS":["6.601 - Estornos Negativos","6.602 - Faltas de Caixa"],"7.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS":["7.701 - Repasse de Valor - Medicos","7.702 - Repasse de Valor - Terapeutas"],"1.1 - RECEITAS OPERACIONAIS (DRE)":["1.101 - Honorarios Clinicos - Medicos","1.102 - Honorários Clínicos - Terapeutas","1.103 - Receita Recebimento Notas Fiscais/Faturados","1.104 - Receita venda de Vacinas","1.105 - Receita Vendas Cartao - Rede Credito e Debito"],"1.2 - RECEITAS COMPLEMENTARES OPERACIONAIS":["1.201 - Exames e Teste - Laboratoriais ","1.202 - Venda de Ativos","1.206 - Receitas Eventuais – Estagios"],"1.3 - RECUPERACAO E AJUSTE OPERACIONAIS":["1.301 - Reembolso de Valores Exames Medicos - Colaboradores","1.302 - Valores Recebidos a Maior","1.303 - Estornos Positivos","1.304 - Creditos Recuperados"],"1.4 - RECEITAS FINANCEIRAS":["1.402 - Descontos obtidos","1.403 - Rendimentos de Aplicacoes","1.404 - Juros s/ duplicatas","1.405 - Multas"],"1.5 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["1.501 - Aporte de Capital","1.502 - Uso de Cheque Especial (entrada)","1.503 - Mutuo de Socios (Emprestimo de socios)"],"1.7 - MOVIMENTACOES TRANSITORIAS":["1.701 - Ajuste de Caixa a Regularizar","1.702 - Depositos nao Identificados","1.703 - Transferencias Transitorias","1.704 - Adiantamento a Regularizar"],"1.8 - OUTRAS RECEITAS OPERACIONAIS":["1.801 - Sobra de Caixa"],"1.9 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS":["1.901 - Valores a Repassar - Medicos","1.902 - Valores a Repassar - Terapeutas"],"10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)":["10.01 - Recebimento Pix/TED - Sinal de Consulta","10.02 - Recebimento Pix/TED - Consulta Final (Quitação)","10.03 - Recebimento Pix/TED - Terapias","10.04 - Recebimento Dinheiro Especie - Consultas/Terapias","10.05 - Recebimento Pix/TED - Convenios e Faturados","10.06 - Recebimento Cartao Liquido (Rede-Itau)","10.07 - Recebimento Pix/TED - Venda de Vacinas","10.08 - Recebimento Bruto Producao - Medicos","10.09 - Recebimento Bruto Producao - Terapeutas"]}
-
-    # ── Função para carregar plano de contas de arquivo ───────────────────────
-    def carregar_plano(arquivo=None):
-        """Lê arquivo Excel/CSV do plano de contas e retorna {cat: [subcats]}."""
-        if arquivo is None:
-            return PLANO_PADRAO.copy()
-        try:
-            if arquivo.name.endswith(".csv"):
-                df = pd.read_csv(arquivo)
-            else:
-                df = pd.read_excel(arquivo, header=0)
-            df.columns = [str(c).strip() for c in df.columns]
-            # Detecta colunas
-            col_cat = next((c for c in df.columns if "categ" in c.lower()), df.columns[0])
-            col_sub = next((c for c in df.columns if "sub" in c.lower()), df.columns[1] if len(df.columns) > 1 else None)
-            plano = {}
-            for _, row in df.iterrows():
-                cat = str(row[col_cat]).strip()
-                if cat == "nan" or not cat:
-                    continue
-                sub = str(row[col_sub]).strip() if col_sub and pd.notna(row[col_sub]) else ""
-                if cat not in plano:
-                    plano[cat] = []
-                if sub and sub != "nan":
-                    plano[cat].append(sub)
-            return plano if plano else PLANO_PADRAO.copy()
-        except Exception as e:
-            st.warning(f"Não foi possível ler o plano de contas: {e}. Usando o padrão embutido.")
-            return PLANO_PADRAO.copy()
-
-    # ── Contatos embutidos ────────────────────────────────────────────────────
-    MEDICOS    = ["luciany","rossania","marilia","sarita","isadora","priscila","juliana","deodato","marcelo","marcello","airton","tarcizio","eulalio","raquel","nahara","paloma","sandra","isabela","ana camila","gisa","lia","theresa","kerolayne"]
-    TERAPEUTAS = ["andrezza","andressa","antonio","marcia","jussara","dayrla","ceciane","wanderson","iasmim","katrine","norla","rosario","alessia","leticia","narllyanna","brenda","maria stheffany","sara micaela","vitorugo","rondinara","edilene","ana karolina","thalita","vanessa","fernanda","lysslly","savia","jamille","elane","francisca","gigi","karem"]
-    PESSOAL    = ["cacilene","kacilene","iara","jessica pinto","simone","vanderlene","gleicyelle","gleycyelle","maria cacilene"]
-
-    # ── Regras base ───────────────────────────────────────────────────────────
-    REGRAS_BASE = [
-        (["cx do dia","honorários","repasse","honorarios"],MEDICOS,"E","10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)","10.08 - Recebimento Bruto Producao - Medicos"),
-        (["cx do dia","honorários","repasse","honorarios"],TERAPEUTAS,"E","10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)","10.09 - Recebimento Bruto Producao - Terapeutas"),
-        (["repasse","honorários","honorarios","cx do dia"],MEDICOS,"S","20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)","20.01 - Repasse Caixa - Medicos (% producao)"),
-        (["repasse","honorários","honorarios","cx do dia","fusma"],TERAPEUTAS,"S","20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)","20.02 - Repasse Caixa - Terapeutas (% producao)"),
-        (["folha","salario","salário"],PESSOAL+["cacilene","kacilene"],"S","3.2 - DESPESAS COM PESSOAL","3.301 - Salarios (D)"),
-        (["gratificação","gratificacao"],[],  "S","3.2 - DESPESAS COM PESSOAL","3.212 - Gratificacao (D)"),
-        (["agua","água","galão","galoes","galões","mineral"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.301 - Água e Esgoto"),
-        (["energia","luz"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.307 - Energia Elétrica"),
-        (["internet","telefone"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.315 - Telefone e Internet"),
-        (["aluguel"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.303 - Aluguel"),
-        (["limpeza","faxina"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.331 - Serviço de Limpeza "),
-        (["manutenção","manut","refriger","ar condic"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.317 - Manutenção de Equipamento "),
-        (["escritorio","impressora","tinta","papel","caneta"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.308 - Material de Escritório "),
-        (["copa","cozinha","cafe","café","marmita","lanche","restaurante","bolo","pipoca","toureiro","atacarejo"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.310 - Material de Copa e Cozinha"),
-        (["material de limpeza","detergente","sabao","sabão"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.312 - Material de Limpeza"),
-        (["segurança","monitoramento","camera"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.313 - Segurança e Monitoramento"),
-        (["marketing","publicidade","propaganda"],[],"S","3.3 - DESPESAS DE VENDAS E MARKETING","3.303 - Propaganda e publicidade"),
-        (["detetizacao","detetização"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.326 - Manutencao e Conservacao"),
-        (["armario","armário","movel","móvel","cadeira","mesa","gancho"],[],"S","4.1 - INVESTIMENTOS","4.401 - Móveis e Utensílios "),
-        (["iof","juros limite"],[],"S","2.1 IMPOSTOS E TAXAS","2.102 - IOF"),
-        (["simples","das "],[],"S","2.1 IMPOSTOS E TAXAS","2.101 - Simples Nacional (DAS)"),
-        (["vacina","teste","exame","laborat"],[],"S","2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)","2.401 - Teste/Vacinas para Revenda"),
-        (["ajuste","troco"],[],"E","1.4 - RECEITAS FINANCEIRAS","1.401 - Ajuste de Caixa"),
-        (["pró-labore","pro labore","prolabore"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.320 - Pró-labore"),
-        (["prestação de serviço","prestacao","bpo"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.304 - Assessoria Financeira (BPO)"),
-        (["devolução","devolveu","deposito","depósito"],[],"S","1.2 - RECEITAS NÃO OPERACIONAIS","1.203 - Reembolso de despesas"),
-        (["retirada","retiradas"],[],"S","5.1 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS","5.502 - Distribuicao de Lucros"),
-        (["montagem","instalação","instalacao","montar"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.319 - Serviços de Terceiros - Montagem e instalações"),
-        (["reparo","reparos","conserto","reforma","troca","trocar"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.326 - Manutencao e Conservacao"),
-        (["lampada","lampadas","lanterna","lâmpada"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.317 - Manutenção de Equipamento "),
-        (["instagram","facebook","marketing","publicidade","propaganda","redes sociais"],[],"S","3.3 - DESPESAS DE VENDAS E MARKETING","3.303 - Propaganda e publicidade"),
-        (["ornamentacao","ornamentação","decoracao","decoração","flores","arranjo"],[],"S","3.3 - DESPESAS DE VENDAS E MARKETING","3.302 - Feiras e Eventos"),
-        (["devolucao","devolveu","estorno","ajuste","especie"],[],"E","1.4 - RECEITAS FINANCEIRAS","1.401 - Ajuste de Caixa"),
-        (["galao","galões","galoes","agua mineral","water"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.310 - Material de Copa e Cozinha"),
-        (["papelaria","caneta","caderno","bloco","agenda"],[],"S","3.1 DESPESAS ADMINISTRATIVAS","3.308 - Material de Escritório "),
-    ]
-
-    # ── Storage persistente ───────────────────────────────────────────────────
-    # ── Storage de mapeamento de contatos ──────────────────────────────────
-    def carregar_mapa_contatos():
-        """Retorna dict {palavra_chave_lower: nome_exato_md}"""
-        try:
-            dados = st.session_state.get("_contatos_mapa", None)
-            if dados:
-                return json.loads(dados)
-        except Exception:
-            pass
-        return {}
-
-    def salvar_mapa_contatos(mapa):
-        st.session_state["_contatos_mapa"] = json.dumps(mapa, ensure_ascii=False)
-
-    def carregar_base_md():
-        """Retorna lista de nomes do Meu Dinheiro (salva no storage)."""
-        try:
-            dados = st.session_state.get("_base_contatos_md", None)
-            if dados:
-                return json.loads(dados)
-        except Exception:
-            pass
-        return []
-
-    def salvar_base_md(nomes):
-        st.session_state["_base_contatos_md"] = json.dumps(nomes, ensure_ascii=False)
-
-    def carregar_base_pf():
-        try:
-            dados = st.session_state.get("_base_contatos_pf", None)
-            if dados:
-                return json.loads(dados)
-        except Exception:
-            pass
-        return []
-
-    def salvar_base_pf(nomes):
-        st.session_state["_base_contatos_pf"] = json.dumps(nomes, ensure_ascii=False)
-
-    def carregar_base_pj():
-        try:
-            dados = st.session_state.get("_base_contatos_pj", None)
-            if dados:
-                return json.loads(dados)
-        except Exception:
-            pass
-        return []
-
-    def salvar_base_pj(nomes):
-        st.session_state["_base_contatos_pj"] = json.dumps(nomes, ensure_ascii=False)
-
-    def re_resolver_df_classificado(mapa, base):
-        """Re-resolve contatos no df_classificado existente com novo mapa/base."""
-        if "df_classificado" not in st.session_state:
-            return
-        df_re = st.session_state["df_classificado"].copy()
-        for i, row in df_re.iterrows():
-            tipo = str(df_re.at[i, "Tipo Lançamento"]) if "Tipo Lançamento" in df_re.columns else ""
-            if tipo == "Transferência":
-                continue
-            nome_res, status_res = resolver_contato(
-                str(row.get("Contato", "")), mapa, base
-            )
-            df_re.at[i, "Contato MD"] = nome_res
-            df_re.at[i, "_status_contato"] = status_res
-        st.session_state["df_classificado"] = df_re
-
-    def carregar_matriz_plano():
-        try:
-            dados = st.session_state.get("_matriz_plano", None)
-            if dados:
-                return json.loads(dados)
-        except Exception:
-            pass
-        return []
-
-    def salvar_matriz_plano(registros):
-        st.session_state["_matriz_plano"] = json.dumps(registros, ensure_ascii=False)
-
-    def buscar_categoria_matriz(contato_md, tipo_mov, matriz):
-        """
-        Busca Categoria + Subcategoria na Matriz do Plano de Contas.
-        tipo_mov: 'E' para entrada, 'S' para saída.
-        Camada 1: match exato (ou multi-nome separado por ' ou ').
-        Camada 2: word match com palavras >= 6 chars (trata abreviações/variações).
-        """
-        if not matriz:
-            return "", ""
-        import unicodedata as _ud2
-        def _nm(s):
-            s = str(s).lower().strip().replace('/', ' ')
-            return ''.join(c for c in _ud2.normalize('NFD', s) if _ud2.category(c) != 'Mn')
-        contato_n = _nm(contato_md)
-        tipo_n    = "entrada" if tipo_mov == "E" else "saida"
-        GENERICOS = {
-            'cliente variavel', 'variacao de terapeutas', 'cliente variavel ',
-            'variacao de medicos', 'variacao de medicos ', 'contas da clinica', ''
+    # ── Configuração persistente (sobrevive entre sessões no mesmo deploy) ─────
+    @st.cache_resource
+    def _cfg_store():
+        return {
+            "plano":      {},    # {cat: [sub, ...]}
+            "base_md":    [],    # [nome_str, ...]   — PF + PJ unificados
+            "matriz":     [],    # [{"cf","cat","sub","tipo_es"}, ...]
+            "mapa":       {},    # {alias: nome_md}  — dicionário manual
+            "regras":     [],    # [{tipo, contato/palavra, mov, categoria, subcategoria}]
+            "exportados": set(), # chaves já exportadas
         }
 
-        # Câmada 1: match exato — suporta "Nome A ou Nome B" na Matriz
-        for reg in matriz:
+    cfg = _cfg_store()
+
+    PLANO_PADRAO = {"2.1 IMPOSTOS E TAXAS":["2.101 - Simples Nacional (DAS)","2.102 - Parcelamentos de Impostos"],"2.2 DEDUCOES DE RECEITAS":["2.201 - Devolucao de vendas/Reembolso","2.202 - Descontos ","2.203 - Desembolso - Nota Fiscal","2.204 - Cancelamento/Glosas de Convenios"],"2.3 - CUSTO DIRETO COM PESSOAL (MOD)":[],"2.4 - CUSTOS DIRETOS COM INSUMOS (MAT)":["2.401 - Teste/Vacinas para Revenda","2.402 - Material de Consumo Clinico","2.403 - Material de Protecao (EPIs)"],"20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)":["20.01 - Repasse Caixa - Medicos (% producao)","20.02 - Repasse Caixa - Terapeutas (% producao)","20.03 - Repasse Caixa - Medicos (valor fixo)","20.04 - Repasse Caixa - Terapeutas (valor fixo)"],"3.1 DESPESAS ADMINISTRATIVAS":["3.301 - Agua e Esgoto","3.302 - IPTU","3.303 - Aluguel","3.304 - Assessoria Financeira (BPO)","3.305 - Consultoria","3.306 - Cartorio","3.307 - Energia Eletrica","3.308 - Material de Escritorio","3.309 - Confraternizacao/Coffee break","3.310 - Material de Copa e Cozinha","3.311 - Material de Informatica","3.312 - Material de Limpeza","3.313 - Seguranca e Monitoramento","3.314 - Contabilidade","3.315 - Telefone e Internet","3.316 - Aluguel de Maquininha - Adquirente de Cartao","3.317 - Manutencao de Equipamento","3.318 - Softwares e Sistemas de Gestao","3.319 - Servicos de Terceiros - Montagem e instalacoes","3.320 - Pro-labore","3.321 - Manutencao de Informatica (contrato)","3.322 - Certificados Digitais","3.323 - Frete/Transportadora","3.324 - Seguro do Imovel","3.325 - Taxas de Adesao","3.326 - Manutencao e Conservacao","3.327 - Viagens - Passagem Aerea e outros","3.328 - Viagens - Servico de Hospedagem","3.329 - Viagens - Transporte e Locomocao","3.330 - Taxas, Licencas e Anuidades Regulatorias","3.331 - Servico de Limpeza","3.332 - Parcela Imovel Proprio (equiv. Aluguel)"],"3.2 - DESPESAS COM PESSOAL":["3.201 - Salario - Fonoaudiologia (C)","3.202 - Salario - Psicologa (C)","3.203 - Salarios (D)","3.204 - 13o Salario (D)","3.205 - Ferias (D)","3.206 - Vale Alimentacao (D)","3.207 - Vale Transporte (D)","3.208 - Uniforme (D)","3.209 - Cursos e Treinamentos (D)","3.210 - Exames Admissional/Demissional","3.211 - FGTS (D)","3.212 - Gratificacao (D)","3.213 - Vale Manicure (D)","3.214 - INSS/IRRF (D)","3.215 - Estagiarios (D)","3.216 - Rescisao","3.217 - Beneficios Exames-Medicos com Coparticipacao"],"3.3 - DESPESAS DE VENDAS E MARKETING":["3.301 - Jessica (Stories)","3.302 - Agencia Experience (Conteudo)","3.303 - Agencia Coqueiro Midia (CRM/IA)","3.304 - Mensalidade Chat OpenAI IA","3.305 - Ornamentacao/Eventos","3.306 - Brindes","3.307 - Patrocinios","3.308 - Publicidade - Meta Ads - Trafego","3.309 - Outdoors"],"3.4 - DESPESAS FINANCEIRAS":["3.402 - Juros sobre Emprestimos","3.403 - Tarifas Bancarias","3.404 - Taxas de Cartao de Credito/Debito","3.405 - Juros/Multa de atraso a Fornecedores","3.406 - Anuidade Cartao de Credito Empresarial","3.407 - IOF sobre operacoes de credito"],"4.1 - INVESTIMENTOS":["4.401 - Moveis e Utensilios","4.403 - Maquinas e Equipamentos","4.404 - Sistema de Energia Solar","4.405 - Obras/Projeto Arquitetonico","4.406 - Integralizacao Capital Unicred"],"5.1 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["5.502 - Distribuicao de Lucros","5.503 - Quitacao Cheque Especial (Saida)","5.505 - Financiamento - Pronampe","5.506 - Pagamento de Mutuo a Socios"],"6.1 - OUTRAS DESPESAS OPERACIONAIS":["6.601 - Estornos Negativos","6.602 - Faltas de Caixa"],"7.1 - CUSTOS DE TERCEIROS - NAO OPERACIONAIS":["7.701 - Repasse de Valor - Medicos","7.702 - Repasse de Valor - Terapeutas"],"1.1 - RECEITAS OPERACIONAIS (DRE)":["1.101 - Honorarios Clinicos - Medicos","1.102 - Honorarios Clinicos - Terapeutas","1.103 - Receita Recebimento Notas Fiscais/Faturados","1.104 - Receita venda de Vacinas","1.105 - Receita Vendas Cartao - Rede Credito e Debito"],"1.2 - RECEITAS COMPLEMENTARES OPERACIONAIS":["1.201 - Exames e Teste - Laboratoriais","1.202 - Venda de Ativos","1.206 - Receitas Eventuais - Estagios"],"1.3 - RECUPERACAO E AJUSTE OPERACIONAIS":["1.301 - Reembolso de Valores Exames Medicos","1.302 - Valores Recebidos a Maior","1.303 - Estornos Positivos","1.304 - Creditos Recuperados"],"1.4 - RECEITAS FINANCEIRAS":["1.402 - Descontos obtidos","1.403 - Rendimentos de Aplicacoes","1.404 - Juros s/ duplicatas","1.405 - Multas"],"1.5 - MOVIMENTACOES DE SOCIOS / FINANCIAMENTOS":["1.501 - Aporte de Capital","1.502 - Uso de Cheque Especial (entrada)","1.503 - Mutuo de Socios"],"1.7 - MOVIMENTACOES TRANSITORIAS":["1.701 - Ajuste de Caixa a Regularizar","1.702 - Depositos nao Identificados","1.703 - Transferencias Transitorias","1.704 - Adiantamento a Regularizar"],"1.8 - OUTRAS RECEITAS OPERACIONAIS":["1.801 - Sobra de Caixa"],"1.9 - RECEITAS DE TERCEIROS - NAO OPERACIONAIS":["1.901 - Valores a Repassar - Medicos","1.902 - Valores a Repassar - Terapeutas"],"10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)":["10.01 - Recebimento Pix/TED - Sinal de Consulta","10.02 - Recebimento Pix/TED - Consulta Final","10.03 - Recebimento Pix/TED - Terapias","10.04 - Recebimento Dinheiro Especie - Consultas/Terapias","10.05 - Recebimento Pix/TED - Convenios e Faturados","10.06 - Recebimento Cartao Liquido (Rede-Itau)","10.07 - Recebimento Pix/TED - Venda de Vacinas","10.08 - Recebimento Bruto Producao - Medicos","10.09 - Recebimento Bruto Producao - Terapeutas"]}
+
+    import unicodedata as _ud, difflib, re as _re, io as _io, csv as _csv
+
+    # ── Funções utilitárias ────────────────────────────────────────────────────
+
+    def _plano_ativo():
+        return cfg["plano"] if cfg["plano"] else PLANO_PADRAO
+
+    def _norm(s):
+        _TITULOS = {'dr','dra','prof','profa','mr','ms','sr','sra','me','pe','rev','seu','dona','d','s','st','sto','sta'}
+        s = str(s).lower().strip().replace('/', ' ')
+        tokens = [w.rstrip('.') for w in s.split() if w.rstrip('.') not in _TITULOS]
+        return ''.join(c for c in _ud.normalize('NFD', ' '.join(tokens)) if _ud.category(c) != 'Mn')
+
+    def _fragmentos(raw):
+        raw = str(raw).strip()
+        partes = [raw]
+        for sep in [' - ', ' / ']:
+            for p in _re.split(_re.escape(sep), raw):
+                p = p.strip()
+                if p and p not in partes:
+                    partes.append(p)
+        return partes
+
+    def resolver_contato(contato_input):
+        _STOP = {'das','dos','de','do','da','em','para','por','no','na','com','que','os','as','ao'}
+        raw = str(contato_input).strip()
+        if not raw:
+            return raw, "sem_match"
+        base_norm = [(_norm(n), n) for n in cfg["base_md"]]
+
+        # Camada 1: dicionário manual
+        for frag in _fragmentos(raw):
+            fn = _norm(frag)
+            for chave, nome_md in cfg["mapa"].items():
+                if _norm(chave) in fn or fn in _norm(chave):
+                    return nome_md, "mapa"
+
+        def _match_str(cn):
+            palavras = [w for w in cn.split() if len(w) >= 3 and w not in _STOP]
+            if not palavras:
+                return 0.0, None, None
+            melhor_match, melhor_score = None, 0
+            for nome_n, nome_orig in base_norm:
+                palavras_md = set(w for w in nome_n.split() if w not in _STOP)
+                score = sum(1 for p in palavras if p in palavras_md)
+                if score > melhor_score:
+                    melhor_score, melhor_match = score, nome_orig
+            if melhor_score >= 1:
+                return float(melhor_score) + 10, melhor_match, "auto"
+            if len(palavras) > 3:
+                return 0.0, None, None
+            melhor_fuzzy, melhor_ratio = None, 0.0
+            for nome_n, nome_orig in base_norm:
+                ratio = 0.0
+                if any(p in nome_n for p in palavras if len(p) >= 4):
+                    ratio = 0.85
+                else:
+                    tokens_md = [w for w in nome_n.split() if w not in _STOP]
+                    for p in palavras:
+                        if len(p) >= 4 and difflib.get_close_matches(p, tokens_md, n=1, cutoff=0.85):
+                            ratio = max(ratio, 0.78)
+                            break
+                    if ratio < 0.70:
+                        ratio = max(ratio, difflib.SequenceMatcher(None, cn, nome_n).ratio())
+                if ratio > melhor_ratio:
+                    melhor_ratio, melhor_fuzzy = ratio, nome_orig
+            if melhor_ratio >= 0.75:
+                return melhor_ratio, melhor_fuzzy, "fuzzy"
+            return 0.0, None, None
+
+        best_s, best_n, best_t = 0.0, None, None
+        for frag in _fragmentos(raw):
+            s, n, t = _match_str(_norm(frag))
+            if s > best_s:
+                best_s, best_n, best_t = s, n, t
+        if best_n:
+            return best_n, best_t
+        return raw, "sem_match"
+
+    def buscar_categoria_matriz(contato_md, tipo_mov):
+        if not cfg["matriz"]:
+            return "", ""
+        contato_n = _norm(contato_md)
+        tipo_n = "entrada" if tipo_mov == "E" else "saida"
+        GENERICOS = {'cliente variavel','variacao de terapeutas','variacao de medicos','contas da clinica',''}
+        for reg in cfg["matriz"]:
             cf_raw = reg.get("cf", "")
-            tp_n   = _nm(reg.get("tipo_es", ""))
-            if tipo_n not in tp_n:
+            if tipo_n not in _norm(reg.get("tipo_es", "")):
                 continue
-            cf_variants = [_nm(v.strip()) for v in cf_raw.split(" ou ")]
+            cf_variants = [_norm(v.strip()) for v in cf_raw.split(" ou ")]
             if any(v in GENERICOS for v in cf_variants):
                 continue
             if contato_n in cf_variants:
                 return reg.get("cat", ""), reg.get("sub", "")
-
-        # Camada 2: word match (palavras >= 6 chars, score >= 1)
-        # Cobre abreviações: "Andrezza L A Lopes" ≈ "Andrezza Luzia Alves Lopes"
         palavras_md = [w for w in contato_n.split() if len(w) >= 6]
         if palavras_md:
-            for reg in matriz:
+            for reg in cfg["matriz"]:
                 cf_raw = reg.get("cf", "")
-                tp_n   = _nm(reg.get("tipo_es", ""))
-                if tipo_n not in tp_n:
+                if tipo_n not in _norm(reg.get("tipo_es", "")):
                     continue
-                cf_variants = [_nm(v.strip()) for v in cf_raw.split(" ou ")]
+                cf_variants = [_norm(v.strip()) for v in cf_raw.split(" ou ")]
                 if any(v in GENERICOS for v in cf_variants):
                     continue
                 for cf_v in cf_variants:
-                    palavras_cf = set(cf_v.split())
-                    if sum(1 for p in palavras_md if p in palavras_cf) >= 1:
+                    if sum(1 for p in palavras_md if p in set(cf_v.split())) >= 1:
                         return reg.get("cat", ""), reg.get("sub", "")
-
         return "", ""
 
-    def resolver_contato(contato_input, mapa, base_md):
-        """
-        Resolve contato do input para nome exato do Meu Dinheiro.
-        Retorna (nome_resolvido, status):
-          status = "mapa"      → encontrado no dicionário manual
-          status = "auto"      → encontrado na base MD por match de palavra inteira
-          status = "fuzzy"     → match heurístico aproximado (difflib)
-          status = "sem_match" → não encontrou, retorna original
-        """
-        import unicodedata as _ud
-        import difflib
-        import re as _re
-
-        _TITULOS = {
-            'dr','dra','prof','profa','mr','ms','sr','sra','me','pe','rev',
-            'seu','dona','d','s','st','sto','sta'
-        }
-        # Preposições/artigos PT que causam false positives no word-match
-        _STOPWORDS = {
-            'das','dos','de','do','da','em','para','por','no','na',
-            'com','uma','uns','uns','que','os','as','ao','aos','num','uma'
-        }
-
-        def _n(s):
-            """Normaliza: minúsculo, sem acento, remove títulos/prefixos."""
-            s = str(s).lower().strip()
-            tokens = [w.rstrip('.') for w in s.split()]
-            tokens = [w for w in tokens if w not in _TITULOS]
-            s = ' '.join(tokens)
-            s = s.replace('/', ' ')  # trata '/' como separador
-            return ''.join(c for c in _ud.normalize('NFD', s) if _ud.category(c) != 'Mn')
-
-        def _fragmentos(raw):
-            """
-            Retorna lista de strings candidatas a partir do input.
-            Separa por ' - ' e ' / ' para tentar cada parte independentemente.
-            Ex: 'Andrezza - Extras HAA' → ['Andrezza - Extras HAA', 'Andrezza', 'Extras HAA']
-            """
-            raw = str(raw).strip()
-            partes = [raw]
-            for sep in [' - ', ' / ']:
-                for p in _re.split(_re.escape(sep), raw):
-                    p = p.strip()
-                    if p and p not in partes:
-                        partes.append(p)
-            return partes
-
-        raw_input = str(contato_input).strip()
-        if not raw_input:
-            return contato_input, "sem_match"
-
-        # Pré-processa base uma única vez
-        base_norm = [(_n(nome), nome) for nome in base_md]
-
-        # Camada 1: dicionário manual — testa input completo e cada fragmento
-        for frag in _fragmentos(raw_input):
-            fn = _n(frag)
-            if not fn:
-                continue
-            for chave, nome_md in mapa.items():
-                if _n(chave) in fn or fn in _n(chave):
-                    return nome_md, "mapa"
-
-        def _match_string(cn, base_norm):
-            """Tenta camadas 2 e 3 para uma string normalizada. Retorna (score, nome_orig, tier)."""
-            if not cn:
-                return 0.0, None, None
-            # Filtra stopwords e tokens curtos para evitar false positives
-            palavras = [w for w in cn.split() if len(w) >= 3 and w not in _STOPWORDS]
-            if not palavras:
-                return 0.0, None, None
-
-            # Camada 2: match de palavra INTEIRA (evita "iara" dentro de "naiara")
-            melhor_match = None
-            melhor_score = 0
-            for nome_n, nome_orig in base_norm:
-                palavras_md = set(w for w in nome_n.split() if w not in _STOPWORDS)
-                score = sum(1 for p in palavras if p in palavras_md)
-                if score > melhor_score:
-                    melhor_score = score
-                    melhor_match = nome_orig
-            if melhor_score >= 1 and melhor_match:
-                return float(melhor_score) + 10, melhor_match, "auto"
-
-            # Camada 3: match heurístico (só para inputs curtos; descrições longas viram sem_match)
-            if len(palavras) > 3:
-                return 0.0, None, None
-            melhor_fuzzy = None
-            melhor_ratio = 0.0
-            for nome_n, nome_orig in base_norm:
-                ratio = 0.0
-                # 3a: palavra do input como substring no nome da base (≥4 chars)
-                if any(p in nome_n for p in palavras if len(p) >= 4):
-                    ratio = 0.85
-                else:
-                    # 3b: match difuso token a token (cutoff 0.85 evita "pacientes"≈"clientes")
-                    tokens_md = [w for w in nome_n.split() if w not in _STOPWORDS]
-                    for p in palavras:
-                        if len(p) >= 4:
-                            tok_matches = difflib.get_close_matches(p, tokens_md, n=1, cutoff=0.85)
-                            if tok_matches:
-                                ratio = max(ratio, 0.78)
-                                break
-                    # 3c: SequenceMatcher sobre string completa (fallback)
-                    if ratio < 0.70:
-                        ratio = max(ratio, difflib.SequenceMatcher(None, cn, nome_n).ratio())
-                if ratio > melhor_ratio:
-                    melhor_ratio = ratio
-                    melhor_fuzzy = nome_orig
-            if melhor_ratio >= 0.75 and melhor_fuzzy:
-                return melhor_ratio, melhor_fuzzy, "fuzzy"
-
-            return 0.0, None, None
-
-        # Testa input completo + fragmentos, fica com o melhor resultado
-        melhor_score_global = 0.0
-        melhor_nome_global = None
-        melhor_tier_global = None
-        for frag in _fragmentos(raw_input):
-            fn = _n(frag)
-            score, nome, tier = _match_string(fn, base_norm)
-            if score > melhor_score_global:
-                melhor_score_global = score
-                melhor_nome_global = nome
-                melhor_tier_global = tier
-
-        if melhor_nome_global:
-            return melhor_nome_global, melhor_tier_global
-
-        # Camada 4: sem match
-        return contato_input, "sem_match"
-
-    def carregar_regras_aprendidas():
-        try:
-            dados = st.session_state.get("_regras_storage", None)
-            if dados:
-                return json.loads(dados)
-        except Exception:
-            pass
-        return []
-
-    def salvar_regras_aprendidas(regras):
-        st.session_state["_regras_storage"] = json.dumps(regras, ensure_ascii=False)
+    def is_transferencia(contato, descricao):
+        c = _norm(contato)
+        d = _norm(descricao)
+        CONTATOS_T = ["mov entre contas","movimentacao entre contas","deposito bb",
+                      "deposito itau","deposito bradesco","deposito banco","deposito bancario"]
+        if any(p in c for p in CONTATOS_T):
+            return True, "Fechamento de caixa 2025;2026"
+        if any(p in d for p in ["fechamento cx","fechamento de cx"]):
+            return True, "Fechamento de caixa 2025;2026"
+        return False, ""
 
     def get_chave(row):
-        """Chave única por lançamento: data + contato + descrição + valor."""
-        data  = str(row.get("Data","")).strip()
-        cont  = str(row.get("Contato","")).strip().lower()
-        desc  = str(row.get("Descricao","")).strip().lower()
-        ent   = str(row.get("Entrada","")).strip()
-        sai   = str(row.get("Saida","")).strip()
-        return f"{data}|{cont}|{desc}|{ent}|{sai}"
+        return "|".join(str(row.get(c,"")).strip() for c in ["Data","Contato","Descricao","Entrada","Saida"])
 
-    def carregar_exportados():
-        try:
-            dados = st.session_state.get("_exportados_storage", None)
-            if dados:
-                return set(json.loads(dados))
-        except Exception:
-            pass
-        return set()
+    def fmt_num(v, neg=False):
+        s = f"{abs(float(v)):.2f}".replace(".", ",")
+        return f"-{s}" if neg else s
 
-    def salvar_exportados(chaves: set):
-        st.session_state["_exportados_storage"] = json.dumps(list(chaves), ensure_ascii=False)
-
-    def classificar(contato, descricao, tipo_mov, regras_aprendidas):
-        c = str(contato).lower().strip()
-        d = str(descricao).lower().strip()
-        t = tipo_mov
-        for r in regras_aprendidas:
-            if r.get("contato","") and r["contato"].lower() in c:
-                if r.get("mov","") in ("", t):
-                    return r["categoria"], r["subcategoria"], "Aprendida"
-            if r.get("palavra",""):
-                if r["palavra"].lower() in d or r["palavra"].lower() in c:
-                    if r.get("mov","") in ("", t):
-                        return r["categoria"], r["subcategoria"], "Aprendida"
-        for palavras_desc, palavras_contato, mov, cat, sub in REGRAS_BASE:
-            if mov != "" and mov != t:
-                continue
-            desc_match = any(p in d for p in palavras_desc) or any(p in c for p in palavras_desc)
-            if palavras_contato:
-                contato_match = any(p in c for p in palavras_contato)
-                if desc_match and contato_match:
-                    return cat, sub, "Alta"
-                if contato_match:
-                    return cat, sub, "Média"
+    def montar_csv_meu_dinheiro(df, conta_nome="Caixinha 2025;2026"):
+        rows = []
+        for _, r in df.iterrows():
+            _pn = lambda x: (parse_numeric(pd.Series([x])).iloc[0] or 0.0)
+            ent = _pn(r.get("Entrada",""))
+            sai = _pn(r.get("Saida",""))
+            tipo = str(r.get("Tipo","")).strip()
+            conta_d = str(r.get("Conta Destino","")).strip()
+            cat = str(r.get("Categoria","")).strip()
+            sub = str(r.get("SubCategoria","")).strip()
+            cmd = str(r.get("Contato MD","")).strip() or str(r.get("Contato","")).strip()
+            desc = str(r.get("Descricao",""))[:100].strip()
+            data = str(r.get("Data","")).strip()
+            eh_saida = sai > 0 and ent == 0
+            if tipo == "Transferência":
+                v = fmt_num(sai, neg=True) if eh_saida else fmt_num(ent)
+                rows.append({"Data":data,"Valor":v,"Descrição":desc,"Conta":conta_nome,
+                    "Conta Transferência":conta_d or "Fechamento de caixa 2025;2026",
+                    "Cartão":"","Categoria":"","Subcategoria":"","Contato":"",
+                    "Centro":"","Projeto":"","Forma":"","N. Documento":"","Observações":"",
+                    "Data Competência":data,"Tags":""})
+            elif tipo == "Receita":
+                rows.append({"Data":data,"Valor":fmt_num(ent),"Descrição":desc,"Conta":conta_nome,
+                    "Conta Transferência":"","Cartão":"","Categoria":cat,"Subcategoria":sub,
+                    "Contato":cmd,"Centro":"","Projeto":"","Forma":"","N. Documento":"","Observações":"",
+                    "Data Competência":data,"Tags":""})
             else:
-                if desc_match:
-                    return cat, sub, "Alta"
-        return "", "", "Manual"
+                rows.append({"Data":data,"Valor":fmt_num(sai,neg=True),"Descrição":desc,"Conta":conta_nome,
+                    "Conta Transferência":"","Cartão":"","Categoria":cat,"Subcategoria":sub,
+                    "Contato":cmd,"Centro":"","Projeto":"","Forma":"","N. Documento":"","Observações":"",
+                    "Data Competência":data,"Tags":""})
+        return pd.DataFrame(rows)
 
-    def gerar_ofx(df_class, conta_nome="Caixinha"):
-        linhas = ["OFXHEADER:100","DATA:OFSGML","VERSION:102","SECURITY:NONE",
-                  "ENCODING:UTF-8","CHARSET:1252","COMPRESSION:NONE",
-                  "OLDFILEUID:NONE","NEWFILEUID:NONE","",
-                  "<OFX>","<BANKMSGSRSV1>","<STMTTRNRS>","<TRNUID>1001",
-                  "<STATUS><CODE>0<SEVERITY>INFO</STATUS>","<STMTRS>",
-                  "<CURDEF>BRL",
-                  f"<BANKACCTFROM><BANKID>0000<ACCTID>{conta_nome}<ACCTTYPE>CHECKING</BANKACCTFROM>",
-                  "<BANKTRANLIST>"]
-        for i, row in df_class.iterrows():
-            try:
-                dt = pd.to_datetime(row["Data"], dayfirst=True, errors="coerce")
-                dt_str = dt.strftime("%Y%m%d") if pd.notna(dt) else "20260101"
-            except Exception:
-                dt_str = "20260101"
-            entrada = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
-            saida   = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
-            valor   = (entrada if pd.notna(entrada) and entrada > 0 else 0) - (saida if pd.notna(saida) and saida > 0 else 0)
-            trntype = "CREDIT" if valor >= 0 else "DEBIT"
-            memo    = str(row.get("Descricao",""))[:60].replace("<","").replace(">","")
-            contato = str(row.get("Contato",""))[:40].replace("<","").replace(">","")
-            linhas += ["<STMTTRN>",f"<TRNTYPE>{trntype}",f"<DTPOSTED>{dt_str}",
-                       f"<TRNAMT>{valor:.2f}",f"<FITID>CX{dt_str}{i:04d}",
-                       f"<n>{contato}",f"<MEMO>{memo}","</STMTTRN>"]
-        linhas += ["</BANKTRANLIST>","</STMTRS>","</STMTTRNRS>","</BANKMSGSRSV1>","</OFX>"]
-        return "\n".join(linhas)
+    def gerar_ofx(df, conta_nome="Caixinha"):
+        _pn = lambda x: (parse_numeric(pd.Series([x])).iloc[0] or 0.0)
+        lines_ofx = [
+            "OFXHEADER:100","DATA:OFXSGML","VERSION:102","SECURITY:NONE",
+            "ENCODING:UTF-8","CHARSET:1252","COMPRESSION:NONE","OLDFILEUID:NONE","NEWFILEUID:NONE",
+            "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0</CODE><SEVERITY>INFO</SEVERITY></STATUS>",
+            "<DTSERVER>20260101120000</DTSERVER><LANGUAGE>POR</LANGUAGE></SONRS></SIGNONMSGSRSV1>",
+            "<BANKMSGSRSV1><STMTTRNRS><TRNUID>1</TRNUID><STMTRS>",
+            "<CURDEF>BRL</CURDEF><BANKACCTFROM><BANKID>000</BANKID>",
+            f"<ACCTID>{conta_nome}</ACCTID><ACCTTYPE>CHECKING</ACCTTYPE></BANKACCTFROM>",
+            "<BANKTRANLIST>",
+        ]
+        for i, r in df.iterrows():
+            ent = _pn(r.get("Entrada",""))
+            sai = _pn(r.get("Saida",""))
+            val = ent if ent > 0 else -sai
+            data_raw = str(r.get("Data","")).replace("/","")
+            if len(data_raw) == 8:
+                data_ofx = data_raw[4:8] + data_raw[2:4] + data_raw[0:2] + "120000"
+            else:
+                data_ofx = "20260101120000"
+            desc = str(r.get("Descricao",""))[:32].replace("&","e").replace("<","").replace(">","")
+            lines_ofx += [
+                "<STMTTRN>",
+                f"<TRNTYPE>{'CREDIT' if val>=0 else 'DEBIT'}</TRNTYPE>",
+                f"<DTPOSTED>{data_ofx}</DTPOSTED>",
+                f"<TRNAMT>{val:.2f}</TRNAMT>",
+                f"<FITID>{i+1:06d}</FITID>",
+                f"<MEMO>{desc}</MEMO>",
+                "</STMTTRN>",
+            ]
+        lines_ofx += ["</BANKTRANLIST>","</STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>"]
+        return "\n".join(lines_ofx)
 
-    regras_aprendidas = carregar_regras_aprendidas()
+    # ── Tabs principais ────────────────────────────────────────────────────────
+    tab_cfg_ui, tab_cls_ui = st.tabs(["⚙️  Configuração", "🤖  Classificar"])
 
-    # ── TABS ──────────────────────────────────────────────────────────────────
-    tab_class, tab_plano, tab_contatos, tab_regras = st.tabs(["🤖  Classificar", "📋  Plano de Contas", "👤  Contatos", "📚  Regras Aprendidas"])
+    # ═════════════════════════════════════════════════════════════════════════
+    # TAB 1 — CONFIGURAÇÃO
+    # ═════════════════════════════════════════════════════════════════════════
+    with tab_cfg_ui:
+        st.markdown('<div style="color:#8899BB;font-size:.85rem;margin-bottom:1rem;">Configure uma vez — os dados ficam salvos até você atualizar ou remover.</div>', unsafe_allow_html=True)
 
-    # ════════════════════════════
-    with tab_plano:
-        st.markdown('<div class="page-sub">Gerencie categorias (mãe) e subcategorias (filhas) do plano de contas.</div>', unsafe_allow_html=True)
+        # ── Plano de Contas ────────────────────────────────────────────────────
+        st.markdown("#### 📋 Plano de Contas")
+        plano_cur = _plano_ativo()
+        n_cats_cur = len(plano_cur)
+        n_subs_cur = sum(len(v) for v in plano_cur.values())
+        fonte = "padrão embutido" if not cfg["plano"] else "importado"
+        st.markdown(f'<span style="color:#4ade80;font-size:.82rem;">✅ Ativo: {n_cats_cur} categorias · {n_subs_cur} subcategorias ({fonte})</span>', unsafe_allow_html=True)
 
-        # ── Helpers para carregar/salvar plano no session_state ───────────────
-        def get_plano():
-            if "_plano_carregado" in st.session_state:
-                return json.loads(st.session_state["_plano_carregado"])
-            return PLANO_PADRAO.copy()
-
-        def set_plano(p):
-            st.session_state["_plano_carregado"] = json.dumps(p, ensure_ascii=False)
-
-        # ── Upload de arquivo ─────────────────────────────────────────────────
-        st.markdown("**Carregar plano do Meu Dinheiro**")
-        st.caption("Envie o arquivo exportado (Excel ou CSV). Deixe vazio para usar o padrão embutido.")
-        f_plano = st.file_uploader(" ", type=["xlsx","xls","csv"], key="plano_file", label_visibility="collapsed")
+        f_plano = st.file_uploader("Importar Plano de Contas do Meu Dinheiro (Excel/CSV)", type=["xlsx","xls","csv"], key="cfg_plano_up")
         if f_plano:
-            plano_importado = carregar_plano(f_plano)
-            set_plano(plano_importado)
-            st.success(f"Plano carregado: {len(plano_importado)} categorias, {sum(len(v) for v in plano_importado.values())} subcategorias.")
-            st.rerun()
-
-        plano = get_plano()
-        cats_list = list(plano.keys())
-        n_subs_total = sum(len(v) for v in plano.values())
-        st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin:.5rem 0 1rem;">{len(cats_list)} categorias · {n_subs_total} subcategorias</div>', unsafe_allow_html=True)
-
-        st.markdown("---")
-
-        # ════════════════════════════════════════════
-        # SEÇÃO 1 — ADICIONAR
-        # ════════════════════════════════════════════
-        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Adicionar</div>', unsafe_allow_html=True)
-
-        add1, add2 = st.columns(2)
-        with add1:
-            st.markdown("**Nova categoria (mãe)**")
-            nova_cat_nome = st.text_input(" ", placeholder="Ex: 7.1 - NOVA CATEGORIA", key="nova_cat_inp", label_visibility="collapsed")
-            if st.button("➕  Adicionar categoria", key="btn_add_cat", use_container_width=True):
-                if nova_cat_nome.strip():
-                    p = get_plano()
-                    if nova_cat_nome.strip() not in p:
-                        p[nova_cat_nome.strip()] = []
-                        set_plano(p)
-                        st.success(f"Categoria '{nova_cat_nome.strip()}' adicionada!")
+            try:
+                if f_plano.name.endswith(".csv"):
+                    df_pl = pd.read_csv(f_plano, sep=None, engine="python", dtype=str).fillna("")
+                else:
+                    df_pl = pd.read_excel(f_plano, dtype=str).fillna("")
+                df_pl.columns = [c.strip() for c in df_pl.columns]
+                col_cat = next((c for c in df_pl.columns if "categ" in c.lower()), None)
+                col_sub = next((c for c in df_pl.columns if "sub" in c.lower()), None)
+                if col_cat and col_sub:
+                    novo_plano = {}
+                    for _, row in df_pl.iterrows():
+                        cat = str(row[col_cat]).strip()
+                        sub = str(row[col_sub]).strip()
+                        if cat and cat != "nan":
+                            novo_plano.setdefault(cat, [])
+                            if sub and sub != "nan" and sub not in novo_plano[cat]:
+                                novo_plano[cat].append(sub)
+                    if novo_plano:
+                        cfg["plano"] = novo_plano
+                        st.success(f"✅ Plano carregado: {len(novo_plano)} categorias")
                         st.rerun()
                     else:
-                        st.warning("Essa categoria já existe.")
+                        st.warning("Nenhuma categoria encontrada. Verifique o arquivo.")
                 else:
-                    st.warning("Digite o nome da categoria.")
-
-        with add2:
-            st.markdown("**Nova subcategoria (filha)**")
-            cat_mae = st.selectbox("Vincular à categoria", ["— selecione —"] + cats_list, key="sub_cat_mae")
-            nova_sub_nome = st.text_input(" ", placeholder="Ex: 7.101 - Descrição da subcategoria", key="nova_sub_inp", label_visibility="collapsed")
-            if st.button("➕  Adicionar subcategoria", key="btn_add_sub", use_container_width=True):
-                if cat_mae == "— selecione —":
-                    st.warning("Selecione a categoria mãe.")
-                elif not nova_sub_nome.strip():
-                    st.warning("Digite o nome da subcategoria.")
-                else:
-                    p = get_plano()
-                    if nova_sub_nome.strip() not in p[cat_mae]:
-                        p[cat_mae].append(nova_sub_nome.strip())
-                        set_plano(p)
-                        st.success(f"Subcategoria adicionada em '{cat_mae}'!")
-                        st.rerun()
-                    else:
-                        st.warning("Essa subcategoria já existe nesta categoria.")
-
-        st.markdown("---")
-
-        # ════════════════════════════════════════════
-        # SEÇÃO 2 — EDITAR
-        # ════════════════════════════════════════════
-        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Editar</div>', unsafe_allow_html=True)
-
-        ed1, ed2 = st.columns(2)
-        with ed1:
-            st.markdown("**Renomear categoria (mãe)**")
-            cat_renomear = st.selectbox("Categoria a renomear", ["— selecione —"] + cats_list, key="cat_renomear_sel")
-            novo_nome_cat = st.text_input(" ", placeholder="Novo nome", key="novo_nome_cat_inp", label_visibility="collapsed")
-            if st.button("✏️  Renomear categoria", key="btn_rename_cat", use_container_width=True):
-                if cat_renomear == "— selecione —":
-                    st.warning("Selecione a categoria.")
-                elif not novo_nome_cat.strip():
-                    st.warning("Digite o novo nome.")
-                elif novo_nome_cat.strip() == cat_renomear:
-                    st.warning("O nome é igual ao atual.")
-                else:
-                    p = get_plano()
-                    # Reconstrói dict preservando a ordem
-                    p_novo = {}
-                    for k, v in p.items():
-                        if k == cat_renomear:
-                            p_novo[novo_nome_cat.strip()] = v
-                        else:
-                            p_novo[k] = v
-                    set_plano(p_novo)
-                    st.success(f"'{cat_renomear}' → '{novo_nome_cat.strip()}'")
-                    st.rerun()
-
-        with ed2:
-            st.markdown("**Renomear subcategoria (filha)**")
-            cat_mae_ed = st.selectbox("Categoria mãe", ["— selecione —"] + cats_list, key="sub_ed_mae")
-            if cat_mae_ed != "— selecione —":
-                subs_da_cat = plano.get(cat_mae_ed, [])
-                sub_renomear = st.selectbox("Subcategoria a renomear", ["— selecione —"] + subs_da_cat, key="sub_renomear_sel")
-                novo_nome_sub = st.text_input(" ", placeholder="Novo nome", key="novo_nome_sub_inp", label_visibility="collapsed")
-                if st.button("✏️  Renomear subcategoria", key="btn_rename_sub", use_container_width=True):
-                    if sub_renomear == "— selecione —":
-                        st.warning("Selecione a subcategoria.")
-                    elif not novo_nome_sub.strip():
-                        st.warning("Digite o novo nome.")
-                    else:
-                        p = get_plano()
-                        idx = p[cat_mae_ed].index(sub_renomear)
-                        p[cat_mae_ed][idx] = novo_nome_sub.strip()
-                        set_plano(p)
-                        st.success(f"'{sub_renomear}' → '{novo_nome_sub.strip()}'")
-                        st.rerun()
-            else:
-                st.caption("Selecione a categoria mãe primeiro.")
-
-        st.markdown("---")
-
-        # ════════════════════════════════════════════
-        # SEÇÃO 3 — EXCLUIR
-        # ════════════════════════════════════════════
-        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Excluir</div>', unsafe_allow_html=True)
-
-        ex1, ex2 = st.columns(2)
-        with ex1:
-            st.markdown("**Excluir categoria (mãe)**")
-            st.caption("⚠️ Remove a categoria e todas as subcategorias vinculadas.")
-            cat_excluir = st.selectbox("Categoria a excluir", ["— selecione —"] + cats_list, key="cat_excluir_sel")
-            if cat_excluir != "— selecione —":
-                n_filhas = len(plano.get(cat_excluir, []))
-                if n_filhas > 0:
-                    st.markdown(f'<div style="font-size:0.8rem;color:#f87171;margin-bottom:6px;">Esta categoria tem {n_filhas} subcategoria(s) que serão removidas junto.</div>', unsafe_allow_html=True)
-                confirmar_cat = st.checkbox(f"Confirmo a exclusão de '{cat_excluir}'", key="confirm_del_cat")
-                if st.button("🗑️  Excluir categoria", key="btn_del_cat", use_container_width=True):
-                    if confirmar_cat:
-                        p = get_plano()
-                        del p[cat_excluir]
-                        set_plano(p)
-                        st.success(f"Categoria '{cat_excluir}' excluída!")
-                        st.rerun()
-                    else:
-                        st.warning("Marque a caixa de confirmação para excluir.")
-
-        with ex2:
-            st.markdown("**Excluir subcategoria (filha)**")
-            st.caption("Remove apenas a subcategoria. A categoria mãe permanece intacta.")
-            cat_mae_ex = st.selectbox("Categoria mãe", ["— selecione —"] + cats_list, key="sub_ex_mae")
-            if cat_mae_ex != "— selecione —":
-                subs_ex = plano.get(cat_mae_ex, [])
-                if subs_ex:
-                    sub_excluir = st.selectbox("Subcategoria a excluir", ["— selecione —"] + subs_ex, key="sub_excluir_sel")
-                    if sub_excluir != "— selecione —":
-                        confirmar_sub = st.checkbox(f"Confirmo a exclusão de '{sub_excluir}'", key="confirm_del_sub")
-                        if st.button("🗑️  Excluir subcategoria", key="btn_del_sub", use_container_width=True):
-                            if confirmar_sub:
-                                p = get_plano()
-                                p[cat_mae_ex].remove(sub_excluir)
-                                set_plano(p)
-                                st.success(f"Subcategoria '{sub_excluir}' excluída. Categoria '{cat_mae_ex}' mantida.")
-                                st.rerun()
-                            else:
-                                st.warning("Marque a caixa de confirmação para excluir.")
-                else:
-                    st.caption("Esta categoria não tem subcategorias.")
-            else:
-                st.caption("Selecione a categoria mãe primeiro.")
-
-        st.markdown("---")
-
-        # ════════════════════════════════════════════
-        # SEÇÃO 4 — VISUALIZAR E EXPORTAR
-        # ════════════════════════════════════════════
-        st.markdown('<div class="section-card-title" style="font-size:.7rem;letter-spacing:.12em;color:#C9A84C;text-transform:uppercase;margin-bottom:.75rem;">Visualizar plano atual</div>', unsafe_allow_html=True)
-
-        for cat, subs in plano.items():
-            with st.expander(f"**{cat}** — {len(subs)} subcategoria(s)"):
-                if subs:
-                    for s in subs:
-                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;↳ {s}")
-                else:
-                    st.caption("Sem subcategorias cadastradas.")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        rows_dl = []
-        for cat, subs in plano.items():
-            if subs:
-                for s in subs:
-                    rows_dl.append({"Categoria": cat, "Subcategoria": s})
-            else:
-                rows_dl.append({"Categoria": cat, "Subcategoria": ""})
-        st.download_button(
-            "⬇️  Baixar plano atualizado (Excel)",
-            data=to_excel_bytes(pd.DataFrame(rows_dl)),
-            file_name=f"plano_contas_crs_{datetime.today().strftime('%d%m%Y')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-
-
-    # ════════════════════════════
-    with tab_class:
-        # Carrega plano vigente
-        if "_plano_carregado" in st.session_state:
-            PLANO_CATS_DIN  = list(json.loads(st.session_state["_plano_carregado"]).keys())
-            PLANO_SUBS_DIN  = json.loads(st.session_state["_plano_carregado"])
-        else:
-            PLANO_CATS_DIN  = list(PLANO_PADRAO.keys())
-            PLANO_SUBS_DIN  = PLANO_PADRAO
-
-        subs_flat = [""] + sorted(set(s for lst in PLANO_SUBS_DIN.values() for s in lst))
-
-        col_u1, col_u2 = st.columns(2)
-        with col_u1:
-            st.markdown("**Planilha da Caixinha (Excel ou CSV)**")
-            st.caption("Excel com abas mensais · ou CSV exportado diretamente")
-            f_caixa = st.file_uploader(" ", type=["xlsx","xls","csv"], key="class_file", label_visibility="collapsed")
-        with col_u2:
-            st.markdown("**Cadastro de Contatos (opcional)**")
-            f_contatos = st.file_uploader(" ", type=["xlsx","xls"], key="class_contatos", label_visibility="collapsed")
-
-        if f_contatos:
-            try:
-                df_con_up = pd.ExcelFile(f_contatos).parse(0, header=0)
-                extra_med = df_con_up[df_con_up["Categoria"].astype(str).str.contains("iatria|édico|eciatra|Pediatra", na=False, case=False)]["Nome"].str.lower().tolist()
-                extra_ter = df_con_up[df_con_up["Categoria"].astype(str).str.contains("terapia|psicol|fono|nutri|fisio|musico|neuropsico|psicoped", na=False, case=False)]["Nome"].str.lower().tolist()
-                MEDICOS    += extra_med
-                TERAPEUTAS += extra_ter
-                st.success(f"Cadastro atualizado: +{len(extra_med)} médicos, +{len(extra_ter)} terapeutas")
+                    st.warning(f"Colunas esperadas: Categoria / Subcategoria. Encontradas: {list(df_pl.columns)}")
             except Exception as e:
-                st.warning(f"Não foi possível ler o cadastro: {e}")
+                st.error(f"Erro ao ler plano: {e}")
 
-        if not f_caixa:
-            st.markdown("""
-            <div class="section-card" style="text-align:center;padding:2rem;margin-top:1rem;">
-                <div style="font-size:2rem;margin-bottom:.5rem;">🤖</div>
-                <div style="color:#556688;font-size:0.85rem;">Carregue a planilha Excel ou CSV da Caixinha para iniciar</div>
-            </div>""", unsafe_allow_html=True)
-            st.stop()
-
-        def parse_caixinha_df(df_raw):
-            """Normaliza colunas do DataFrame da Caixinha (Excel ou CSV)."""
-            # Detecta linha de cabeçalho buscando pela palavra DATA
-            header_row = 0
-            for i, row in df_raw.iterrows():
-                if "DATA" in [str(v).upper().strip() for v in row.values]:
-                    header_row = i
-                    break
-            df_raw.columns = df_raw.iloc[header_row]
-            df_raw = df_raw.iloc[header_row+1:].reset_index(drop=True)
-            df_raw.columns = [str(c).strip() for c in df_raw.columns]
-            col_map = {}
-            for c in df_raw.columns:
-                cu = str(c).upper()
-                if "DATA" in cu: col_map[c] = "Data"
-                elif "CONTATO" in cu or "FORNEC" in cu: col_map[c] = "Contato"
-                elif "DESCRI" in cu: col_map[c] = "Descricao"
-                elif "ENTRADA" in cu: col_map[c] = "Entrada"
-                elif "SA" in cu and "DO" not in cu and len(c) < 10: col_map[c] = "Saida"
-                elif "SALDO" in cu: col_map[c] = "Saldo"
-            df_raw = df_raw.rename(columns=col_map)
-            needed = [c for c in ["Data","Contato","Descricao","Entrada","Saida"] if c in df_raw.columns]
-            df_work = df_raw[needed].copy()
-            df_work = df_work[
-                df_work["Data"].notna() &
-                (df_work["Data"].astype(str).str.strip() != "") &
-                (df_work["Data"].astype(str) != "nan")
-            ]
-            df_work["Data"] = pd.to_datetime(
-                df_work["Data"], dayfirst=True, errors="coerce"
-            ).dt.strftime("%d/%m/%Y")
-            return df_work[df_work["Data"].notna()].reset_index(drop=True)
-
-        # ── Carrega Excel ou CSV ───────────────────────────────────────────
-        nome_arquivo = f_caixa.name.lower()
-        aba_sel = None
-
-        if nome_arquivo.endswith(".csv"):
-            # CSV — lê com detecção de encoding e separador
-            raw_bytes = f_caixa.read()
-            df_csv_raw = None
-            for enc in ["latin-1","cp1252","iso-8859-1","utf-8","utf-8-sig"]:
-                for sep in [";",",","\t"]:
-                    try:
-                        import io as _io
-                        df_csv_raw = pd.read_csv(
-                            _io.BytesIO(raw_bytes), encoding=enc, sep=sep,
-                            header=None, on_bad_lines="skip", engine="python"
-                        )
-                        if len(df_csv_raw.columns) > 3:
-                            break
-                    except Exception:
-                        continue
-                if df_csv_raw is not None and len(df_csv_raw.columns) > 3:
-                    break
-
-            if df_csv_raw is None or df_csv_raw.empty:
-                st.error("Não foi possível ler o CSV. Verifique o formato.")
-                st.stop()
-
-            # Nome do arquivo sem extensão como identificador
-            aba_sel = f_caixa.name.replace(".csv","").replace("_"," ")
-            try:
-                df_work = parse_caixinha_df(df_csv_raw)
-            except Exception as e:
-                st.error(f"Erro ao processar CSV: {e}")
-                st.stop()
-
-        else:
-            # Excel — seleciona aba
-            try:
-                xl_caixa = pd.ExcelFile(f_caixa)
-            except Exception as e:
-                st.error(f"Erro ao ler arquivo: {e}")
-                st.stop()
-
-            abas_cx = [a for a in xl_caixa.sheet_names if "caixa" in a.lower()]
-            aba_sel = st.selectbox(
-                "Selecione o mês", abas_cx if abas_cx else xl_caixa.sheet_names, key="class_aba"
-            )
-            try:
-                df_raw = xl_caixa.parse(aba_sel, header=None)
-                df_work = parse_caixinha_df(df_raw)
-            except Exception as e:
-                st.error(f"Erro ao ler aba: {e}")
-                st.stop()
-
-        st.markdown(
-            f'<div style="font-size:0.82rem;color:#8899BB;margin:.5rem 0 1rem;">' +
-            (f'Arquivo: <strong style="color:#C9A84C;">{aba_sel}</strong>' if nome_arquivo.endswith(".csv") else f'Aba: <strong style="color:#C9A84C;">{aba_sel}</strong>') +
-            f' · {len(df_work)} lançamentos</div>',
-            unsafe_allow_html=True
-        )
-
-        # ── Contas disponíveis para transferência ────────────────────────────
-        CONTAS_DISPONIVEIS = [
-            "",
-            "Fechamento de caixa 2025;2026",
-            "Itaú 2025;2026",
-            "Banco do Brasil",
-            "Caixinha 2025;2026",
-        ]
-        CONTA_PADRAO_CAIXINHA = "Caixinha 2025;2026"
-
-        # ── Detecta se lançamento é Transferência entre contas ────────────────
-        TODOS_PROFISSIONAIS = MEDICOS + TERAPEUTAS + PESSOAL
-
-        # Palavras que indicam DESPESA/MOVIMENTAÇÃO direta mesmo com profissional no contato
-        # Normalizadas sem acento para comparação robusta
-        PALAVRAS_DESPESA_DIRETA = [
-            # Marketing / pessoal
-            "instagram","facebook","marketing","publicidade","propaganda",
-            "gratificacao","salario","vale","uniforme","ferias",
-            "curso","treinamento","adiantamento","inss","fgts","rescisao",
-            # Retiradas de sócios / movimentações (5.1)
-            "retirada","retiradas","pro labore","prolabore","distribuicao",
-            # Repasses externos (Fusma = repasse de terceiros)
-            "repasse externo","devolucao","devolveu","especie","troca","reparos","reparo","conserto","reforma",
-            # Despesas diversas
-            "reembolso","material","limpeza","compra","nota fiscal","servico",
-            "remedio","medicamento","farmacia","lampada","toner","copia",
-            "energia","agua","internet","telefone","aluguel","condominio",
-            "manutencao","conserto","reparo","instalacao","montagem",
-            "salgado","bolo","cafe","lanche","marmita","restaurante",
-            "camiseta","brinde","aniversario","evento","joia","joias",
-            "papelaria","viagem","passagem","hospedagem","capa",
-            "protestada","energia protestada",
-        ]
-
-        def detectar_tipo_lancamento(contato, descricao):
-            """
-            Retorna (tipo, conta_destino):
-            - "Transferência" + conta   → movimentação real entre contas bancárias
-            - None, ""                   → Receita ou Despesa por sinal (classificado pela Matriz)
-
-            Regras:
-            1. Contato é conta/banco → Transferência
-            2. Descrição indica fechamento entre contas → Transferência
-            3. Qualquer outra coisa (inclusive "Cx do dia" de profissional) → None → Receita/Despesa + Matriz
-            """
-            import unicodedata as _ud
-            def _norm(s): return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
-
-            c = _norm(contato)
-            d = _norm(descricao)
-
-            # Regra 1: contato indica movimentação entre contas bancárias
-            CONTATOS_TRANSF = [
-                "mov entre contas", "movimentacao entre contas",
-                "deposito bb", "deposito itau", "deposito bradesco",
-                "deposito banco", "deposito bancario",
-                "banco do brasil deposito",
-            ]
-            if any(p in c for p in CONTATOS_TRANSF):
-                return "Transferência", "Fechamento de caixa 2025;2026"
-
-            # Regra 2: descrição indica fechamento real entre contas
-            # NÃO inclui "cx do dia" / "caixa do dia" — esses são Receita/Despesa de produção
-            DESCRICOES_TRANSF = ["fechamento cx", "fechamento de cx"]
-            if any(p in d for p in DESCRICOES_TRANSF):
-                return "Transferência", "Fechamento de caixa 2025;2026"
-
-            return None, ""  # será Receita ou Despesa por sinal → classificado pela Matriz
-
-        exportados = carregar_exportados()
-        n_ja_exportados = sum(1 for _, row in df_work.iterrows() if get_chave(row) in exportados)
-
-        # Banner informativo se houver lançamentos já exportados
-        if n_ja_exportados > 0:
-            n_novos = len(df_work) - n_ja_exportados
-            st.markdown(f"""
-            <div style="background:#162236;border-left:3px solid #C9A84C;border-radius:0 8px 8px 0;
-                        padding:8px 14px;font-size:0.82rem;margin-bottom:12px;">
-                📋 <strong style="color:#C9A84C;">{n_ja_exportados} lançamentos</strong>
-                <span style="color:#8899BB;">já foram exportados para o Meu Dinheiro anteriormente.</span>
-                <strong style="color:#4ade80;">{n_novos} novos</strong>
-                <span style="color:#8899BB;">para revisar.</span>
-            </div>""", unsafe_allow_html=True)
-
-        mapa_contatos = carregar_mapa_contatos()
-        base_md       = carregar_base_md()
-
-        if st.button("🤖  Classificar Automaticamente", key="btn_class"):
-            cats, subs, confs, tipos, contas_dest, ja_exp_flags, contatos_md, status_contatos = [], [], [], [], [], [], [], []
-            for _, row in df_work.iterrows():
-                entrada = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
-                saida   = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
-                tmov    = "E" if (pd.notna(entrada) and entrada > 0) else "S"
-                contato   = str(row.get("Contato",""))
-                descricao = str(row.get("Descricao",""))
-                chave     = get_chave(row)
-                ja_exp    = chave in exportados
-
-                # Detecta tipo
-                tipo_det, conta_det = detectar_tipo_lancamento(contato, descricao)
-                if tipo_det == "Transferência":
-                    tipos.append("Transferência")
-                    contas_dest.append(conta_det)
-                    cats.append("")
-                    subs.append("")
-                    confs.append("Auto" if not ja_exp else "✅ Exportado")
-                else:
-                    tipo_fin = "Receita" if tmov == "E" else "Despesa"
-                    tipos.append(tipo_fin)
-                    contas_dest.append("")
-                    # Resolve contato ANTES para usar no lookup da Matriz
-                    nome_res, status_res = resolver_contato(
-                        str(row.get("Contato","")), mapa_contatos, base_md
-                    )
-                    contatos_md.append(nome_res)
-                    status_contatos.append(status_res)
-                    if ja_exp:
-                        cats.append(""); subs.append(""); confs.append("✅ Exportado")
-                    else:
-                        cat, sub, conf = classificar(contato, descricao, tmov, regras_aprendidas)
-                        # Se regras existentes não encontraram → tenta Matriz do Plano
-                        if conf == "Manual":
-                            matriz_plano = carregar_matriz_plano()
-                            cat_m, sub_m = buscar_categoria_matriz(nome_res, tmov, matriz_plano)
-                            if cat_m:
-                                cat, sub, conf = cat_m, sub_m, "Matriz"
-                        cats.append(cat); subs.append(sub); confs.append(conf)
-                ja_exp_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
-
-                # Transferências: resolve contato separado
-                tipo_final = tipos[-1]
-                if tipo_final == "Transferência":
-                    contatos_md.append("")
-                    status_contatos.append("transf")
-
-            df_work["Tipo Lançamento"]  = tipos
-            df_work["Conta Destino"]    = contas_dest
-            df_work["Categoria"]        = cats
-            df_work["SubCategoria"]     = subs
-            df_work["Confiança"]        = confs
-            df_work["Status Export"]    = ja_exp_flags
-            df_work["Contato MD"]       = contatos_md
-            df_work["_status_contato"]  = status_contatos
-            st.session_state["df_classificado"] = df_work.copy()
-
-        if "df_classificado" not in st.session_state:
-            st.stop()
-
-        df_class = st.session_state["df_classificado"].copy()
-
-        # Garante coluna Status Export
-        if "Status Export" not in df_class.columns:
-            df_class["Status Export"] = "🆕 Novo"
-
-        total_exp = (df_class["Status Export"]=="✅ Sim").sum()
-        total_nov = (df_class["Status Export"]=="🆕 Novo").sum()
-        alta      = (df_class["Confiança"]=="Alta").sum()
-        aprend    = (df_class["Confiança"]=="Aprendida").sum()
-        manual    = (df_class[~df_class["Status Export"].str.contains("Sim")]["Confiança"]=="Manual").sum()
-        matriz_c  = (df_class["Confiança"]=="Matriz").sum()
-
-        m1,m2,m3,m4,m5,m6 = st.columns(6)
-        for col,lbl,val,cls in [
-            (m1,"Total",str(len(df_class)),""),
-            (m2,"Já exportados",str(total_exp),"green"),
-            (m3,"Novos",str(total_nov),"amber" if total_nov>0 else "green"),
-            (m4,"Aprendidas",str(aprend),"green"),
-            (m5,"Matriz",str(matriz_c),"green" if matriz_c>0 else ""),
-            (m6,"Revisão manual",str(manual),"red" if manual>0 else "green"),
-        ]:
-            col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        # ── Alertas de contatos sem match / fuzzy ────────────────────────────
-        if "_status_contato" in df_class.columns:
-            n_sem_match = (df_class["_status_contato"] == "sem_match").sum()
-            n_fuzzy     = (df_class["_status_contato"] == "fuzzy").sum()
-            if n_sem_match > 0:
-                nomes_sem = df_class[df_class["_status_contato"]=="sem_match"]["Contato MD"].tolist()
-                nomes_uniq = list(dict.fromkeys(nomes_sem))[:5]
-                st.markdown(f"""
-                <div style="background:#422006;border-left:3px solid #f97316;border-radius:0 8px 8px 0;
-                            padding:10px 14px;font-size:0.82rem;margin-bottom:8px;">
-                    ⚠️ <strong style="color:#fcd34d;">{n_sem_match} contato(s) sem match</strong>
-                    <span style="color:#fed7aa;"> na base do Meu Dinheiro — revise na coluna <strong>Contato MD</strong>
-                    ou cadastre no dicionário (aba Contatos):</span><br>
-                    <span style="color:#fdba74;font-size:0.78rem;">{" · ".join(str(n) for n in nomes_uniq if n and str(n) != "nan")}</span>
-                </div>""", unsafe_allow_html=True)
-            if n_fuzzy > 0:
-                nomes_fuz = df_class[df_class["_status_contato"]=="fuzzy"]["Contato MD"].tolist()
-                nomes_fuz_uniq = list(dict.fromkeys(nomes_fuz))[:5]
-                st.markdown(f"""
-                <div style="background:#1c2a1c;border-left:3px solid #fcd34d;border-radius:0 8px 8px 0;
-                            padding:10px 14px;font-size:0.82rem;margin-bottom:8px;">
-                    🔍 <strong style="color:#fcd34d;">{n_fuzzy} contato(s) com match heurístico</strong>
-                    <span style="color:#d1fae5;"> — verifique se o nome resolvido está correto:</span><br>
-                    <span style="color:#86efac;font-size:0.78rem;">{" · ".join(str(n) for n in nomes_fuz_uniq if n and str(n) != "nan")}</span>
-                </div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:#C9A84C;">
-            ✏️ Edite <strong>Categoria</strong>, <strong>SubCategoria</strong> e <strong>Contato MD</strong> diretamente na tabela.
-            Clique em <strong>Salvar correções</strong> para criar regras automáticas para os próximos meses.
-        </div>""", unsafe_allow_html=True)
-
-        # Garante colunas existem mesmo se recarregado sem reclassificar
-        for col_init, val_init in [("Tipo Lançamento",""), ("Conta Destino",""),
-                                   ("Contato MD",""), ("_status_contato","sem_match")]:
-            if col_init not in df_class.columns:
-                df_class[col_init] = val_init
-
-        df_edit = st.data_editor(
-            df_class,
-            column_config={
-                "Tipo Lançamento": st.column_config.SelectboxColumn(
-                    "Tipo Lançamento",
-                    options=["Receita","Despesa","Transferência"],
-                    width="medium",
-                    help="Transferência = entre contas internas (sem Categoria). Receita/Despesa = lançamento direto com Categoria."
-                ),
-                "Conta Destino":   st.column_config.SelectboxColumn(
-                    "Conta Destino",
-                    options=CONTAS_DISPONIVEIS,
-                    width="large",
-                    help="Preencha só quando Tipo = Transferência"
-                ),
-                "Categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_DIN, width="large"),
-                "SubCategoria": st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,      width="large"),
-                "Status Export":st.column_config.TextColumn("Export", disabled=True, width="small"),
-                "Contato MD":   st.column_config.TextColumn("Contato MD", width="medium",
-                    help="Nome exato no Meu Dinheiro. ⚠️ = sem match na base — edite antes de exportar."),
-                "Confiança":    st.column_config.TextColumn("Confiança", disabled=True, width="small"),
-                "Contato":      st.column_config.TextColumn("Contato"),
-                "Descricao":    st.column_config.TextColumn("Descrição", disabled=True),
-                "Data":         st.column_config.TextColumn("Data",      disabled=True, width="small"),
-                "Entrada":      st.column_config.TextColumn("Entrada",   disabled=True, width="small"),
-                "Saida":        st.column_config.TextColumn("Saída",     disabled=True, width="small"),
-            },
-            use_container_width=True, hide_index=True, key="editor_class",
-        )
-
-        col_sv, _ = st.columns([1,2])
-        with col_sv:
-            if st.button("💾  Salvar correções e criar regras", key="btn_salvar_regras", use_container_width=True):
-                novas_regras = list(regras_aprendidas)
-                n_novas = 0
-                orig = st.session_state["df_classificado"]
-                for i, row in df_edit.iterrows():
-                    orig_cat = orig.loc[i,"Categoria"] if i < len(orig) else ""
-                    new_cat  = row.get("Categoria","")
-                    new_sub  = row.get("SubCategoria","")
-                    if (new_cat != orig_cat) and new_cat:
-                        contato   = str(row.get("Contato","")).strip()
-                        descricao = str(row.get("Descricao","")).strip()
-                        entrada   = parse_numeric(pd.Series([row.get("Entrada","")])).iloc[0]
-                        saida     = parse_numeric(pd.Series([row.get("Saida","")])).iloc[0]
-                        mov       = "E" if (pd.notna(entrada) and entrada > 0) else "S"
-                        if contato and len(contato) > 2:
-                            r = {"tipo":"contato","contato":contato.lower(),"palavra":"","mov":mov,"categoria":new_cat,"subcategoria":new_sub,"origem":f"{aba_sel}"}
-                            if not any(x.get("contato","").lower()==r["contato"] and x.get("mov","")==mov for x in novas_regras):
-                                novas_regras.insert(0, r); n_novas += 1
-                        palavras = [p for p in descricao.lower().split() if len(p) > 4]
-                        if palavras:
-                            chave = palavras[0]
-                            r2 = {"tipo":"descricao","contato":"","palavra":chave,"mov":mov,"categoria":new_cat,"subcategoria":new_sub,"origem":f"{aba_sel}"}
-                            if not any(x.get("palavra","").lower()==chave and x.get("mov","")==mov for x in novas_regras):
-                                novas_regras.insert(0, r2); n_novas += 1
-                salvar_regras_aprendidas(novas_regras)
-                st.session_state["df_classificado"] = df_edit.copy()
-                st.success(f"✅ {n_novas} novas regras criadas!")
+        if cfg["plano"]:
+            if st.button("🔄 Voltar ao plano padrão embutido", key="cfg_reset_plano"):
+                cfg["plano"] = {}
                 st.rerun()
 
         st.markdown("---")
-        nome_base = f"caixinha_{aba_sel.replace(' ','_').replace('$','').strip()}_{datetime.today().strftime('%d%m%Y')}"
 
-        # ── Monta CSV no formato EXATO do Meu Dinheiro (16 colunas) ─────────
-        def montar_csv_meu_dinheiro(df, conta_nome="Caixinha 2025;2026"):
-            """
-            Gera CSV no formato de importação do Meu Dinheiro Web — 16 colunas.
-            Valor: negativo = saída/despesa, positivo = entrada/receita (sem aspas, sem R$).
-            Transferência: valor positivo quando entrada, negativo quando saída.
-            Separador: vírgula. Encoding: utf-8.
-            """
-            def fmt_num(v, negativo=False):
-                """
-                Formata número no padrão do Meu Dinheiro:
-                vírgula como decimal, sem ponto milhar — ex: -4,00 ou 300,00
-                Pandas coloca aspas quando o valor contém vírgula e o separador é vírgula,
-                o que é aceito pelo Meu Dinheiro Web.
-                """
-                s = f"{abs(v):.2f}".replace(".", ",")
-                return f"-{s}" if negativo else s
+        # ── Base de Contatos ───────────────────────────────────────────────────
+        st.markdown("#### 👤 Base de Contatos (PF + PJ)")
+        n_base = len(cfg["base_md"])
+        cor_base = "#4ade80" if n_base > 0 else "#f97316"
+        st.markdown(f'<span style="color:{cor_base};font-size:.82rem;">{"✅" if n_base > 0 else "⚠️"} {n_base} contatos carregados</span>', unsafe_allow_html=True)
 
-            rows = []
-            for _, r in df.iterrows():
-                entrada    = parse_numeric(pd.Series([r.get("Entrada","")])).iloc[0]
-                saida      = parse_numeric(pd.Series([r.get("Saida","")])).iloc[0]
-                tipo       = str(r.get("Tipo Lançamento","")).strip()
-                conta_dest = str(r.get("Conta Destino","")).strip()
-                cat        = str(r.get("Categoria","")).strip()
-                sub        = str(r.get("SubCategoria","")).strip()
-                contato    = str(r.get("Contato","")).strip()
-                contato_md = str(r.get("Contato MD","")).strip()
-                # Remove prefixo ⚠️ se presente (sem match — usa original)
-                contato_md_clean = contato_md.lstrip("⚠️ ").strip() if contato_md else contato
-                descricao  = str(r.get("Descricao",""))[:100].strip()
-                data       = str(r.get("Data","")).strip()
-
-                val_e = entrada if (pd.notna(entrada) and entrada > 0) else 0.0
-                val_s = saida   if (pd.notna(saida)   and saida   > 0) else 0.0
-                eh_saida = val_s > 0 and val_e == 0
-
-                # Nome limpo — remove título Dra/Dr
-                nome_limpo = " ".join(w for w in contato.split() if w.lower().rstrip(".") not in ("dra","dr")).strip()
-
-                if tipo == "Transferência":
-                    # Descrição: "Cx Luciany 01/04/2026" / "Fusma Norla fevereiro"
-                    desc_lower = descricao.lower()
-                    if "cx do dia" in desc_lower or "cx dia" in desc_lower:
-                        prefixo = "Cx"
-                    elif "fechamento cx" in desc_lower or "fechamento de cx" in desc_lower:
-                        prefixo = "Fechamento Cx"
-                    elif "fusma" in desc_lower:
-                        prefixo = "Fusma"
-                    else:
-                        prefixo = descricao.split()[0] if descricao else "Cx"
-                    desc_export    = f"{prefixo} {nome_limpo} {data}".strip() if nome_limpo else descricao
-                    valor_str      = fmt_num(val_s, negativo=True) if eh_saida else fmt_num(val_e)
-                    conta_transf   = conta_dest if conta_dest else "Fechamento de caixa 2025;2026"
-                    cat_export     = ""
-                    sub_export     = ""
-                    contato_export = ""  # vazio nas transferências
-                elif tipo == "Receita":
-                    desc_export    = descricao
-                    valor_str      = fmt_num(val_e, negativo=False)
-                    conta_transf   = ""
-                    cat_export     = cat
-                    sub_export     = sub
-                    contato_export = contato_md_clean or contato
-                else:  # Despesa
-                    desc_export    = descricao
-                    valor_str      = fmt_num(val_s, negativo=True)
-                    conta_transf   = ""
-                    cat_export     = cat
-                    sub_export     = sub
-                    contato_export = contato_md_clean or contato
-
-                rows.append({
-                    "Data":                data,
-                    "Valor":               valor_str,
-                    "Descrição":           desc_export,
-                    "Conta":               conta_nome,
-                    "Conta Transferência": conta_transf,
-                    "Cartão":              "",
-                    "Categoria":           cat_export,
-                    "Subcategoria":        sub_export,
-                    "Contato":             contato_export,
-                    "Centro":              "",
-                    "Projeto":             "",
-                    "Forma":               "",
-                    "N. Documento":        "",
-                    "Observações":         "",
-                    "Data Competência":    data,
-                    "Tags":                "",
-                })
-            return pd.DataFrame(rows)
-
-        # Filtra só os NOVOS para exportar (exclui já exportados)
-        status_col = "Status Export" if "Status Export" in df_edit.columns else None
-        if status_col:
-            df_novos = df_edit[df_edit[status_col] != "✅ Sim"].copy()
-        else:
-            df_novos = df_edit.copy()
-
-        df_csv_md = montar_csv_meu_dinheiro(df_novos, conta_nome=CONTA_PADRAO_CAIXINHA)
-
-        n_novos_export = len(df_novos)
-        n_ja_exp_edit  = len(df_edit) - n_novos_export
-
-        dl1, dl2, dl3 = st.columns(3)
-        with dl1:
-            st.markdown("**CSV — Importar no Meu Dinheiro**")
-            if n_ja_exp_edit > 0:
-                st.caption(f"Apenas os {n_novos_export} novos · {n_ja_exp_edit} já exportados ignorados")
-            else:
-                st.caption("16 colunas · Transferências com Conta Destino · Receitas/Despesas com Categoria")
-
-            import io as _io, csv as _csv
-            buf = _io.StringIO()
-            df_csv_md.to_csv(buf, index=False, sep=",", quoting=_csv.QUOTE_MINIMAL)
-            csv_bytes = buf.getvalue().encode("utf-8")
-
-            if st.download_button(
-                f"⬇️  Baixar CSV ({n_novos_export} lançamentos)",
-                data=csv_bytes,
-                file_name=f"{nome_base}_meu_dinheiro.csv",
-                mime="text/csv"
-            ):
-                # Marca os novos como exportados no storage
-                exportados_atual = carregar_exportados()
-                for _, row in df_novos.iterrows():
-                    exportados_atual.add(get_chave(row))
-                salvar_exportados(exportados_atual)
-                st.success(f"✅ {n_novos_export} lançamentos marcados como exportados!")
-                st.rerun()
-        with dl2:
-            st.markdown("**Excel — revisão**")
-            st.caption("Planilha completa com coluna de confiança")
-            st.download_button("⬇️  Baixar Excel", data=to_excel_bytes(df_edit), file_name=f"{nome_base}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        with dl3:
-            st.markdown("**OFX — extrato bancário**")
-            st.caption("Para conciliação — requer classificação manual no sistema")
-            st.download_button("⬇️  Baixar OFX", data=gerar_ofx(df_edit, conta_nome=aba_sel).encode("utf-8"), file_name=f"{nome_base}.ofx", mime="application/octet-stream")
-
-        st.markdown("""
-        <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:0.8rem;color:#8899BB;">
-            💡 <strong style="color:#C9A84C;">Dica de importação no Meu Dinheiro:</strong>
-            Vá em <strong>Lançamentos → Importar → selecione o CSV</strong>.
-            Transferências já chegam com <strong>Conta Destino</strong> preenchida — o sistema cria os dois lados automaticamente.
-            Receitas e Despesas já chegam com <strong>Categoria</strong> — sem retrabalho.
-        </div>""", unsafe_allow_html=True)
-
-    # ════════════════════════════
-    # ════════════════════════════════════════════════════════════════
-    with tab_contatos:
-        st.markdown('<div class="page-sub">Mapeie contatos do input para os nomes exatos do Meu Dinheiro. Salvo permanentemente no app.</div>', unsafe_allow_html=True)
-
-        mapa_atual = carregar_mapa_contatos()
-        base_atual = carregar_base_md()
-
-        # ── Upload bases de contatos — PF e PJ separadas ──────────────────
-        st.markdown("**Base de Contatos do Meu Dinheiro**")
-        st.caption("Importe as duas bases exportadas em Cadastros → Contatos. Salvas automaticamente para os próximos meses.")
-        bc1, bc2 = st.columns(2)
-        with bc1:
+        col_pf, col_pj = st.columns(2)
+        with col_pf:
             st.markdown("**Pessoa Física (PF)**")
-            st.caption("Coluna 'Nome' — ex: CONTATO_MD_CADASTRO_PF.xlsx")
-            f_base_pf = st.file_uploader(" ", type=["xlsx","xls","csv"], key="base_pf_upload", label_visibility="collapsed")
-            if f_base_pf:
+            f_pf = st.file_uploader("Arquivo PF", type=["xlsx","xls"], key="cfg_pf_up", label_visibility="collapsed")
+            if f_pf:
                 try:
-                    df_pf = pd.read_excel(f_base_pf) if f_base_pf.name.endswith((".xlsx",".xls")) else pd.read_csv(f_base_pf)
-                    col_pf = next((c for c in df_pf.columns if "nome" in c.lower()), df_pf.columns[0])
-                    nomes_pf = [str(n).strip() for n in df_pf[col_pf].dropna() if str(n).strip()]
-                    salvar_base_pf(nomes_pf)
-                    combinado = nomes_pf + carregar_base_pj()
-                    salvar_base_md(combinado)
-                    base_atual = combinado
-                    st.success(f"✅ {len(nomes_pf)} contatos PF salvos!")
+                    df_pf = pd.read_excel(f_pf, dtype=str).fillna("")
+                    col_nome = next((c for c in df_pf.columns if "nome" in c.lower()), df_pf.columns[0])
+                    nomes_pf = [str(v).strip() for v in df_pf[col_nome] if str(v).strip() and str(v).strip() != "nan"]
+                    existentes = set(cfg["base_md"])
+                    novos = [n for n in nomes_pf if n not in existentes]
+                    cfg["base_md"].extend(novos)
+                    st.success(f"✅ {len(novos)} contatos PF adicionados")
+                    st.rerun()
                 except Exception as e:
-                    st.warning(f"Erro ao ler base PF: {e}")
-        with bc2:
+                    st.error(f"Erro: {e}")
+
+        with col_pj:
             st.markdown("**Pessoa Jurídica (PJ)**")
-            st.caption("Coluna 'Razão social' / 'Nome fantasia' — ex: CONTATO_MD_CADASTRO_JUR.xlsx")
-            f_base_pj = st.file_uploader(" ", type=["xlsx","xls","csv"], key="base_pj_upload", label_visibility="collapsed")
-            if f_base_pj:
+            f_pj = st.file_uploader("Arquivo PJ", type=["xlsx","xls"], key="cfg_pj_up", label_visibility="collapsed")
+            if f_pj:
                 try:
-                    df_pj = pd.read_excel(f_base_pj) if f_base_pj.name.endswith((".xlsx",".xls")) else pd.read_csv(f_base_pj)
+                    df_pj = pd.read_excel(f_pj, dtype=str).fillna("")
                     nomes_pj = []
-                    for col_busca in ["Razão social", "Nome fantasia", "Nome"]:
-                        c_match = next((c for c in df_pj.columns if col_busca.lower() in c.lower()), None)
-                        if c_match:
-                            nomes_pj += [str(n).strip() for n in df_pj[c_match].dropna() if str(n).strip()]
-                    nomes_pj = list(dict.fromkeys(nomes_pj))  # deduplica mantendo ordem
-                    salvar_base_pj(nomes_pj)
-                    combinado = carregar_base_pf() + nomes_pj
-                    salvar_base_md(combinado)
-                    base_atual = combinado
-                    st.success(f"✅ {len(nomes_pj)} contatos PJ salvos!")
+                    for col in df_pj.columns:
+                        if any(k in col.lower() for k in ["razao","fantasia","nome"]):
+                            nomes_pj += [str(v).strip() for v in df_pj[col] if str(v).strip() and str(v).strip() != "nan"]
+                    existentes = set(cfg["base_md"])
+                    novos = [n for n in nomes_pj if n not in existentes]
+                    cfg["base_md"].extend(novos)
+                    st.success(f"✅ {len(novos)} contatos PJ adicionados")
+                    st.rerun()
                 except Exception as e:
-                    st.warning(f"Erro ao ler base PJ: {e}")
+                    st.error(f"Erro: {e}")
 
-        # Status das bases carregadas
-        n_pf = len(carregar_base_pf())
-        n_pj = len(carregar_base_pj())
-        if n_pf > 0 or n_pj > 0:
-            st.markdown(
-                f'<div style="font-size:0.8rem;color:#C9A84C;margin-bottom:12px;">'
-                f'📋 Base ativa: <strong>{n_pf}</strong> PF · <strong>{n_pj}</strong> PJ · '
-                f'<strong>{n_pf + n_pj}</strong> total — auto-match ativo</div>',
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown('<div style="font-size:0.8rem;color:#8899BB;margin-bottom:12px;">Nenhuma base carregada — apenas dicionário manual será usado.</div>', unsafe_allow_html=True)
-
-        # ── Upload Matriz do Plano de Contas ─────────────────────────────
-        st.markdown("**Matriz do Plano de Contas**")
-        st.caption("Importe o arquivo XLSX com a aba MATRIZ (regras de classificação por contato). Atualize quando houver novos profissionais ou categorias.")
-        f_matriz = st.file_uploader(" ", type=["xlsx","xls"], key="matriz_plano_upload", label_visibility="collapsed")
-        if f_matriz:
-            try:
-                df_mtz = pd.read_excel(f_matriz, sheet_name="MATRIZ")
-                registros = []
-                for _, row_m in df_mtz.iterrows():
-                    cf  = str(row_m.get("CLIENTE/FORNECEDOR", "")).strip()
-                    cat = str(row_m.get("CATEGORIA ", row_m.get("CATEGORIA", ""))).strip()
-                    sub = str(row_m.get("SUBCATEGORIA", "")).strip()
-                    tes = str(row_m.get("TIPO (ENTRADA/SAIDA/TRANFERENCIA)", "")).strip()
-                    if cat and cat != "nan":
-                        registros.append({"cf": cf, "cat": cat, "sub": sub, "tipo_es": tes})
-                salvar_matriz_plano(registros)
-                st.success(f"✅ Matriz carregada: {len(registros)} regras de classificação!")
-            except Exception as e:
-                st.warning(f"Erro ao ler Matriz: {e}")
-        n_mtz = len(carregar_matriz_plano())
-        if n_mtz > 0:
-            st.markdown(
-                f'<div style="font-size:0.8rem;color:#C9A84C;margin-bottom:12px;">'
-                f'📊 Matriz ativa: <strong>{n_mtz}</strong> regras carregadas</div>',
-                unsafe_allow_html=True
-            )
+        if cfg["base_md"]:
+            if st.button("🗑️ Limpar base de contatos", key="cfg_reset_base"):
+                cfg["base_md"] = []
+                st.rerun()
 
         st.markdown("---")
 
-        # ── Dicionário manual ─────────────────────────────────────────────
-        st.markdown("**Dicionário manual de contatos**")
-        st.caption("Palavra-chave do input → Nome exato no Meu Dinheiro. Tem prioridade máxima sobre o auto-match.")
+        # ── Matriz do Plano de Contas ──────────────────────────────────────────
+        st.markdown("#### 📊 Matriz do Plano de Contas")
+        st.caption("Regras de classificação por contato — atualiza quando adicionar novos profissionais.")
+        n_mtz = len(cfg["matriz"])
+        cor_mtz = "#4ade80" if n_mtz > 0 else "#f97316"
+        st.markdown(f'<span style="color:{cor_mtz};font-size:.82rem;">{"✅" if n_mtz > 0 else "⚠️"} {n_mtz} regras carregadas</span>', unsafe_allow_html=True)
 
-        # Adicionar novo mapeamento
-        ma1, ma2, ma3 = st.columns([2,3,1])
-        with ma1:
-            nova_chave = st.text_input(" ", placeholder="Palavra-chave (ex: agua mineral)", key="novo_map_chave", label_visibility="collapsed")
-        with ma2:
-            if base_atual:
-                novo_nome = st.selectbox(" ", ["— Digite ou selecione —"] + sorted(base_atual), key="novo_map_nome_sel", label_visibility="collapsed")
-                if novo_nome == "— Digite ou selecione —":
-                    novo_nome = st.text_input(" ", placeholder="Ou digite o nome exato", key="novo_map_nome_txt", label_visibility="collapsed")
-            else:
-                novo_nome = st.text_input(" ", placeholder="Nome exato no Meu Dinheiro", key="novo_map_nome_txt", label_visibility="collapsed")
-        with ma3:
-            if st.button("➕ Adicionar", key="btn_add_mapa", use_container_width=True):
-                if nova_chave.strip() and novo_nome and novo_nome not in ("— Digite ou selecione —",""):
-                    mapa_edit = carregar_mapa_contatos()
-                    mapa_edit[nova_chave.strip().lower()] = novo_nome.strip()
-                    salvar_mapa_contatos(mapa_edit)
-                    # Atualiza classificação existente em tempo real
-                    re_resolver_df_classificado(mapa_edit, carregar_base_md())
-                    st.success(f"✅ Mapeamento adicionado: '{nova_chave}' → '{novo_nome}' · Classificação atualizada!")
+        f_mtz = st.file_uploader("Arquivo Matriz (aba MATRIZ)", type=["xlsx","xls"], key="cfg_mtz_up")
+        if f_mtz:
+            try:
+                df_mtz = pd.read_excel(f_mtz, sheet_name="MATRIZ", dtype=str).fillna("")
+                df_mtz.columns = [c.strip() for c in df_mtz.columns]
+                col_cf  = next((c for c in df_mtz.columns if "contato" in c.lower() or c.upper() == "CF"), None)
+                col_cat = next((c for c in df_mtz.columns if "categ" in c.lower()), None)
+                col_sub = next((c for c in df_mtz.columns if "sub" in c.lower()), None)
+                col_tp  = next((c for c in df_mtz.columns if "tipo" in c.lower() or "e/s" in c.lower() or "es" == c.lower()), None)
+                if not all([col_cf, col_cat, col_sub, col_tp]):
+                    st.warning(f"Colunas esperadas: CF/Contato, Categoria, Subcategoria, Tipo E/S. Encontradas: {list(df_mtz.columns)}")
+                else:
+                    registros = []
+                    for _, row in df_mtz.iterrows():
+                        cf = str(row[col_cf]).strip()
+                        if cf and cf != "nan":
+                            registros.append({
+                                "cf": cf,
+                                "cat": str(row[col_cat]).strip(),
+                                "sub": str(row[col_sub]).strip(),
+                                "tipo_es": str(row[col_tp]).strip(),
+                            })
+                    cfg["matriz"] = registros
+                    st.success(f"✅ Matriz carregada: {len(registros)} regras")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao ler Matriz: {e}")
+
+        if cfg["matriz"]:
+            if st.button("🗑️ Limpar Matriz", key="cfg_reset_mtz"):
+                cfg["matriz"] = []
+                st.rerun()
+
+        st.markdown("---")
+
+        # ── Dicionário Manual ──────────────────────────────────────────────────
+        st.markdown("#### 🔤 Dicionário de Contatos")
+        st.caption("Associe apelidos da caixinha ao nome exato no Meu Dinheiro.")
+
+        n_mapa = len(cfg["mapa"])
+        if n_mapa > 0:
+            df_mapa_show = pd.DataFrame([{"Apelido (Caixinha)": k, "Nome no MD": v} for k, v in cfg["mapa"].items()])
+            st.dataframe(df_mapa_show, hide_index=True, use_container_width=True)
+
+        with st.expander("➕ Adicionar entrada no dicionário"):
+            m1, m2 = st.columns(2)
+            with m1:
+                alias_inp = st.text_input("Apelido da caixinha", key="dic_alias", placeholder="Ex: D. Catia")
+            with m2:
+                nome_inp  = st.text_input("Nome exato no Meu Dinheiro", key="dic_nome", placeholder="Ex: Catia Maria Silva")
+            if st.button("Salvar no dicionário", key="dic_save"):
+                if alias_inp.strip() and nome_inp.strip():
+                    cfg["mapa"][alias_inp.strip()] = nome_inp.strip()
+                    st.success(f"✅ '{alias_inp.strip()}' → '{nome_inp.strip()}' salvo!")
                     st.rerun()
                 else:
                     st.warning("Preencha os dois campos.")
 
-        # Tabela do dicionário atual
-        st.markdown("<br>", unsafe_allow_html=True)
-        if mapa_atual:
-            st.markdown(f'<div style="font-size:0.8rem;color:#8899BB;margin-bottom:8px;">{len(mapa_atual)} mapeamentos salvos</div>', unsafe_allow_html=True)
-            df_mapa = pd.DataFrame([{"Palavra-chave (input)": k, "Nome no Meu Dinheiro": v} for k,v in mapa_atual.items()])
-            df_mapa_edit = st.data_editor(
-                df_mapa,
-                column_config={
-                    "Palavra-chave (input)": st.column_config.TextColumn("Palavra-chave (input)", width="medium"),
-                    "Nome no Meu Dinheiro":  st.column_config.TextColumn("Nome no Meu Dinheiro",  width="large"),
-                },
-                num_rows="dynamic", use_container_width=True, hide_index=True, key="editor_mapa"
-            )
-            mc1, mc2 = st.columns(2)
-            with mc1:
-                if st.button("💾  Salvar alterações", key="btn_save_mapa", use_container_width=True):
-                    novo_mapa = {str(r["Palavra-chave (input)"]).strip().lower(): str(r["Nome no Meu Dinheiro"]).strip()
-                                 for _, r in df_mapa_edit.iterrows()
-                                 if str(r.get("Palavra-chave (input)","")).strip()}
-                    salvar_mapa_contatos(novo_mapa)
-                    # Atualiza classificação existente em tempo real
-                    re_resolver_df_classificado(novo_mapa, carregar_base_md())
-                    st.success("✅ Dicionário salvo! Contatos atualizados na classificação.")
-                    st.rerun()
-            with mc2:
-                st.download_button("⬇️  Exportar dicionário JSON",
-                    data=json.dumps(mapa_atual, ensure_ascii=False, indent=2).encode("utf-8"),
-                    file_name="contatos_mapa_crs.json", mime="application/json",
-                    use_container_width=True)
-        else:
-            st.info("Nenhum mapeamento manual ainda. Adicione acima para começar.")
-
-        # ── Preview auto-match ────────────────────────────────────────────
-        if base_atual:
-            st.markdown("---")
-            st.markdown("**Testar resolução de contato**")
-            st.caption("Simule como um contato do input será resolvido.")
-            tc1, tc2 = st.columns(2)
-            with tc1:
-                teste_contato = st.text_input(" ", placeholder="Digite um nome do input (ex: agua mineral)", key="teste_contato_inp", label_visibility="collapsed")
-            with tc2:
-                if teste_contato:
-                    nome_res, status_res = resolver_contato(teste_contato, carregar_mapa_contatos(), base_atual)
-                    cores = {"mapa":"#4ade80","auto":"#93c5fd","fuzzy":"#fcd34d","sem_match":"#f97316"}
-                    labels = {"mapa":"Dicionário manual","auto":"Auto-match exato","fuzzy":"🔍 Match heurístico","sem_match":"⚠️ Sem match"}
-                    st.markdown(f'''
-                    <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-top:4px;font-size:0.85rem;">
-                        <span style="color:{cores[status_res]};font-weight:600;">{labels[status_res]}</span><br>
-                        <span style="color:#e2e8f0;">→ {nome_res}</span>
-                    </div>''', unsafe_allow_html=True)
-
-    with tab_regras:
-        st.markdown('<div class="page-sub">Regras criadas pelas suas correções — prioridade máxima na classificação.</div>', unsafe_allow_html=True)
-
-        # ── Controle de exportados ────────────────────────────────────────────
-        exportados_hist = carregar_exportados()
-        if exportados_hist:
-            st.markdown(f'<div style="font-size:0.82rem;color:#8899BB;margin-bottom:8px;">📋 <strong style="color:#C9A84C;">{len(exportados_hist)}</strong> lançamentos marcados como já exportados para o Meu Dinheiro.</div>', unsafe_allow_html=True)
-            if st.button("🗑️  Limpar histórico de exportados", key="btn_clear_exp"):
-                salvar_exportados(set())
-                st.success("Histórico limpo — todos os lançamentos serão tratados como novos.")
+        if cfg["mapa"]:
+            del_key = st.selectbox("Remover entrada", ["— selecione —"] + list(cfg["mapa"].keys()), key="dic_del_sel")
+            if st.button("Remover", key="dic_del_btn") and del_key != "— selecione —":
+                del cfg["mapa"][del_key]
                 st.rerun()
-        else:
-            st.info("Nenhum lançamento marcado como exportado ainda.")
+
+    # ═════════════════════════════════════════════════════════════════════════
+    # TAB 2 — CLASSIFICAR
+    # ═════════════════════════════════════════════════════════════════════════
+    with tab_cls_ui:
+
+        plano_ativo  = _plano_ativo()
+        PLANO_CATS   = list(plano_ativo.keys())
+        subs_flat    = [""] + sorted(set(s for lst in plano_ativo.values() for s in lst))
+        CONTAS_DISP  = ["","Fechamento de caixa 2025;2026","Itaú 2025;2026","Banco do Brasil","Caixinha 2025;2026"]
+        CONTA_PADRAO = "Caixinha 2025;2026"
+
+        # Avisos de configuração incompleta
+        alertas = []
+        if not cfg["base_md"]:
+            alertas.append("Base de contatos não carregada — os nomes não serão resolvidos para o Meu Dinheiro.")
+        if not cfg["matriz"]:
+            alertas.append("Matriz do Plano de Contas não carregada — categorias não serão preenchidas automaticamente.")
+        for alerta in alertas:
+            st.warning(f"⚠️ {alerta} Configure na aba **⚙️ Configuração**.")
+
+        # Upload do CSV da caixinha
+        f_csv = st.file_uploader("📂 Planilha da Caixinha (Excel ou CSV)", type=["xlsx","xls","csv"], key="cls_csv_up")
+        if not f_csv:
+            st.info("⬆️ Faça o upload da planilha da caixinha para começar.")
+            st.stop()
+
+        # Carrega e normaliza
+        try:
+            df_raw = load_file(f_csv)
+        except Exception as e:
+            st.error(f"Erro ao ler arquivo: {e}")
+            st.stop()
+
+        col_map = {}
+        for c in df_raw.columns:
+            cl = c.strip().lower()
+            if "data" in cl:                         col_map["Data"]     = c
+            elif "contato" in cl or "fornec" in cl:  col_map["Contato"]  = c
+            elif "descri" in cl or "hist" in cl:     col_map["Descricao"]= c
+            elif "entrada" in cl:                    col_map["Entrada"]  = c
+            elif "sa" in cl and "da" not in cl and "saldo" not in cl: col_map["Saida"] = c
+
+        df_work = df_raw.rename(columns={v: k for k, v in col_map.items()})
+        for c in ["Data","Contato","Descricao","Entrada","Saida"]:
+            if c not in df_work.columns:
+                df_work[c] = ""
+
+        df_work = df_work[df_work["Contato"].astype(str).str.strip().str.len() > 0].copy()
+        df_work = df_work[df_work["Data"].astype(str).str.strip().str.len() > 0].copy()
+        df_work = df_work.reset_index(drop=True)
+
+        if df_work.empty:
+            st.warning("Nenhum lançamento válido encontrado no arquivo.")
+            st.stop()
+
+        n_total = len(df_work)
+        nome_aba = f_csv.name.replace(".csv","").replace(".xlsx","").replace(".xls","")
+        st.markdown(f'<div style="color:#8899BB;font-size:.82rem;margin-bottom:.5rem;">Arquivo: <strong style="color:#C9A84C;">{nome_aba}</strong> · {n_total} lançamentos</div>', unsafe_allow_html=True)
+
+        # Lançamentos já exportados
+        ja_exp_count = sum(1 for _, row in df_work.iterrows() if get_chave(row) in cfg["exportados"])
+        if ja_exp_count > 0:
+            st.markdown(f'<div style="background:#162236;border-left:3px solid #C9A84C;border-radius:0 8px 8px 0;padding:8px 14px;font-size:.82rem;margin-bottom:12px;">📋 <strong style="color:#C9A84C;">{ja_exp_count} lançamentos</strong> já foram exportados anteriormente. <strong style="color:#4ade80;">{n_total-ja_exp_count} novos</strong> para revisar.</div>', unsafe_allow_html=True)
+
+        if st.button("🤖  Processar e Classificar", key="btn_class", use_container_width=True):
+            tipos, contas_dest, cats, subs, confs = [], [], [], [], []
+            contatos_md, status_cts, ja_flags = [], [], []
+
+            for _, row in df_work.iterrows():
+                contato   = str(row.get("Contato","")).strip()
+                descricao = str(row.get("Descricao","")).strip()
+                ja_exp    = get_chave(row) in cfg["exportados"]
+                ja_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
+
+                _pn = lambda x: (parse_numeric(pd.Series([x])).iloc[0] or 0.0)
+                ent = _pn(row.get("Entrada",""))
+                sai = _pn(row.get("Saida",""))
+                tmov = "E" if ent > 0 else "S"
+
+                transf, conta_dest = is_transferencia(contato, descricao)
+                if transf:
+                    tipos.append("Transferência")
+                    contas_dest.append(conta_dest)
+                    cats.append(""); subs.append(""); confs.append("Auto")
+                    contatos_md.append(""); status_cts.append("transf")
+                    continue
+
+                tipo_fin = "Receita" if tmov == "E" else "Despesa"
+                tipos.append(tipo_fin)
+                contas_dest.append("")
+
+                nome_md, st_res = resolver_contato(contato)
+                contatos_md.append(nome_md)
+                status_cts.append(st_res)
+
+                if ja_exp:
+                    cats.append(""); subs.append(""); confs.append("✅ Exportado")
+                    continue
+
+                # Busca Matriz primeiro
+                cat, sub = buscar_categoria_matriz(nome_md, tmov)
+                conf = "Matriz" if cat else ""
+
+                # Fallback: regras aprendidas
+                if not cat:
+                    for r in cfg["regras"]:
+                        if r.get("mov","") != tmov:
+                            continue
+                        if r.get("tipo") == "contato" and r.get("contato","").lower() in contato.lower():
+                            cat, sub, conf = r["categoria"], r["subcategoria"], "Aprendida"
+                            break
+                        if r.get("tipo") == "descricao":
+                            for p in descricao.lower().split():
+                                if len(p) > 4 and p == r.get("palavra",""):
+                                    cat, sub, conf = r["categoria"], r["subcategoria"], "Aprendida"
+                                    break
+                        if cat:
+                            break
+
+                conf = conf or "Manual"
+                cats.append(cat); subs.append(sub); confs.append(conf)
+
+            df_work["Tipo"]         = tipos
+            df_work["Conta Destino"]= contas_dest
+            df_work["Categoria"]    = cats
+            df_work["SubCategoria"] = subs
+            df_work["Confiança"]    = confs
+            df_work["Status"]       = ja_flags
+            df_work["Contato MD"]   = contatos_md
+            df_work["_st_ct"]       = status_cts
+            st.session_state["df_cls"] = df_work.copy()
+
+        if "df_cls" not in st.session_state:
+            st.stop()
+
+        df_cls = st.session_state["df_cls"].copy()
+
+        # Métricas
+        n_exp  = (df_cls["Status"]=="✅ Sim").sum()
+        n_nov  = (df_cls["Status"]=="🆕 Novo").sum()
+        n_rec  = (df_cls["Tipo"]=="Receita").sum()
+        n_des  = (df_cls["Tipo"]=="Despesa").sum()
+        n_tra  = (df_cls["Tipo"]=="Transferência").sum()
+        n_mtz_c  = (df_cls["Confiança"]=="Matriz").sum()
+        n_apr  = (df_cls["Confiança"]=="Aprendida").sum()
+        n_man  = ((df_cls["Confiança"]=="Manual") & (df_cls["Status"]!="✅ Sim")).sum()
+
+        m1,m2,m3,m4,m5,m6,m7,m8 = st.columns(8)
+        for col,lbl,val,cls in [
+            (m1,"Total",    n_total,      ""),
+            (m2,"Exportados",n_exp,       "green"),
+            (m3,"Novos",    n_nov,        "amber" if n_nov>0 else "green"),
+            (m4,"Receitas", n_rec,        "green" if n_rec>0 else ""),
+            (m5,"Despesas", n_des,        ""),
+            (m6,"Transf.",  n_tra,        ""),
+            (m7,"Matriz",   n_mtz_c,      "green" if n_mtz_c>0 else ""),
+            (m8,"Manual",   n_man,        "red" if n_man>0 else "green"),
+        ]:
+            col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Alertas de resolução de contatos
+        if "_st_ct" in df_cls.columns:
+            sem_match = df_cls[df_cls["_st_ct"]=="sem_match"]["Contato MD"].tolist()
+            fuzzy_lst = df_cls[df_cls["_st_ct"]=="fuzzy"]["Contato MD"].tolist()
+            if sem_match:
+                uniq_sm = list(dict.fromkeys(sem_match))[:5]
+                st.markdown(f'<div style="background:#422006;border-left:3px solid #f97316;border-radius:0 8px 8px 0;padding:8px 14px;font-size:.82rem;margin-bottom:6px;">⚠️ <strong style="color:#fcd34d;">{len(sem_match)} lançamento(s) sem match</strong> na base — revise a coluna <strong>Contato MD</strong>:<br><span style="color:#fdba74;font-size:.78rem;">{" · ".join(str(n) for n in uniq_sm)}</span></div>', unsafe_allow_html=True)
+            if fuzzy_lst:
+                uniq_fz = list(dict.fromkeys(fuzzy_lst))[:5]
+                st.markdown(f'<div style="background:#1c2a1c;border-left:3px solid #fcd34d;border-radius:0 8px 8px 0;padding:8px 14px;font-size:.82rem;margin-bottom:6px;">🔍 <strong style="color:#fcd34d;">{len(fuzzy_lst)} contato(s) com match heurístico</strong> — confirme se o nome está correto:<br><span style="color:#86efac;font-size:.78rem;">{" · ".join(str(n) for n in uniq_fz)}</span></div>', unsafe_allow_html=True)
+
+        st.markdown('<div style="background:#1B2A4A;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:.82rem;color:#C9A84C;">✏️ Edite <strong>Tipo</strong>, <strong>Categoria</strong>, <strong>SubCategoria</strong> e <strong>Contato MD</strong> diretamente na tabela.</div>', unsafe_allow_html=True)
+
+        df_edit = st.data_editor(
+            df_cls,
+            column_config={
+                "Tipo": st.column_config.SelectboxColumn("Tipo", options=["Receita","Despesa","Transferência"], width="small"),
+                "Conta Destino": st.column_config.SelectboxColumn("Conta Destino", options=CONTAS_DISP, width="medium"),
+                "Categoria":     st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS, width="large"),
+                "SubCategoria":  st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,  width="large"),
+                "Contato MD":    st.column_config.TextColumn("Contato MD", width="medium"),
+                "Status":        st.column_config.TextColumn("Status", disabled=True, width="small"),
+                "Confiança":     st.column_config.TextColumn("Confiança", disabled=True, width="small"),
+                "Contato":       st.column_config.TextColumn("Contato", width="medium"),
+                "Descricao":     st.column_config.TextColumn("Descrição", disabled=True),
+                "Data":          st.column_config.TextColumn("Data", disabled=True, width="small"),
+                "Entrada":       st.column_config.TextColumn("Entrada", disabled=True, width="small"),
+                "Saida":         st.column_config.TextColumn("Saída",   disabled=True, width="small"),
+                "_st_ct":        st.column_config.TextColumn("_st_ct", disabled=True),
+            },
+            use_container_width=True, hide_index=True, key="editor_cls",
+        )
+
+        # Salvar correções como regras
+        col_sv, _ = st.columns([1,3])
+        with col_sv:
+            if st.button("💾  Salvar correções", key="btn_salvar", use_container_width=True):
+                orig = st.session_state["df_cls"]
+                n_novas = 0
+                for i, row in df_edit.iterrows():
+                    orig_cat = orig.loc[i,"Categoria"] if i < len(orig) else ""
+                    new_cat  = row.get("Categoria","")
+                    new_sub  = row.get("SubCategoria","")
+                    new_tipo = row.get("Tipo","")
+                    if new_cat and new_cat != orig_cat:
+                        contato = str(row.get("Contato","")).strip()
+                        descricao = str(row.get("Descricao","")).strip()
+                        _pn = lambda x: (parse_numeric(pd.Series([x])).iloc[0] or 0.0)
+                        tmov = "E" if _pn(row.get("Entrada","")) > 0 else "S"
+                        if contato and len(contato) > 2:
+                            r = {"tipo":"contato","contato":contato.lower(),"palavra":"","mov":tmov,"categoria":new_cat,"subcategoria":new_sub}
+                            if not any(x.get("contato","").lower()==r["contato"] and x.get("mov","")==tmov for x in cfg["regras"]):
+                                cfg["regras"].insert(0, r); n_novas += 1
+                        palavras = [p for p in descricao.lower().split() if len(p) > 4]
+                        if palavras:
+                            chave = palavras[0]
+                            r2 = {"tipo":"descricao","contato":"","palavra":chave,"mov":tmov,"categoria":new_cat,"subcategoria":new_sub}
+                            if not any(x.get("palavra","").lower()==chave and x.get("mov","")==tmov for x in cfg["regras"]):
+                                cfg["regras"].insert(0, r2); n_novas += 1
+                st.session_state["df_cls"] = df_edit.copy()
+                st.success(f"✅ {n_novas} novas regras salvas!")
+                st.rerun()
+
         st.markdown("---")
-        regras_atual = carregar_regras_aprendidas()
 
-        if "_plano_carregado" in st.session_state:
-            PLANO_CATS_R = list(json.loads(st.session_state["_plano_carregado"]).keys())
-            subs_flat_r  = [""] + sorted(set(s for lst in json.loads(st.session_state["_plano_carregado"]).values() for s in lst))
-        else:
-            PLANO_CATS_R = list(PLANO_PADRAO.keys())
-            subs_flat_r  = [""] + sorted(set(s for lst in PLANO_PADRAO.values() for s in lst))
+        # Exportar apenas novos
+        df_novos = df_edit[df_edit["Status"] != "✅ Sim"].copy()
+        n_novos_export = len(df_novos)
+        n_skip = len(df_edit) - n_novos_export
+        nome_base = f"caixinha_{nome_aba.replace(' ','_')}_{pd.Timestamp.today().strftime('%d%m%Y')}"
 
-        if not regras_atual:
-            st.info("Nenhuma regra aprendida ainda. Corrija classificações na aba Classificar e salve.")
-        else:
-            st.markdown(f'<div style="font-size:0.82rem;color:#C9A84C;margin-bottom:1rem;">{len(regras_atual)} regras salvas</div>', unsafe_allow_html=True)
-            df_regras = pd.DataFrame(regras_atual)
-            df_regras_edit = st.data_editor(
-                df_regras,
-                column_config={
-                    "tipo":         st.column_config.TextColumn("Tipo",          disabled=True, width="small"),
-                    "contato":      st.column_config.TextColumn("Contato",       width="medium"),
-                    "palavra":      st.column_config.TextColumn("Palavra-chave", width="medium"),
-                    "mov":          st.column_config.SelectboxColumn("Mov",      options=["E","S",""], width="small"),
-                    "categoria":    st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS_R,  width="large"),
-                    "subcategoria": st.column_config.SelectboxColumn("Subcategoria", options=subs_flat_r,   width="large"),
-                    "origem":       st.column_config.TextColumn("Origem",        disabled=True, width="medium"),
-                },
-                num_rows="dynamic", use_container_width=True, hide_index=True, key="editor_regras",
-            )
-            r1, r2, r3 = st.columns(3)
-            with r1:
-                if st.button("💾  Salvar alterações", key="btn_salvar_r2", use_container_width=True):
-                    salvar_regras_aprendidas(df_regras_edit.to_dict("records"))
-                    st.success("Regras salvas!"); st.rerun()
-            with r2:
-                st.download_button("⬇️  Exportar JSON", data=json.dumps(regras_atual, ensure_ascii=False, indent=2).encode("utf-8"),
-                    file_name="regras_caixinha.json", mime="application/json", use_container_width=True)
-            with r3:
-                if st.button("🗑️  Apagar todas", key="btn_del_r", use_container_width=True):
-                    salvar_regras_aprendidas([])
-                    st.warning("Regras apagadas."); st.rerun()
+        st.markdown("**📤 Exportar**")
+        if n_skip > 0:
+            st.caption(f"{n_novos_export} novos para exportar · {n_skip} já exportados ignorados")
+
+        dl1, dl2, dl3 = st.columns(3)
+        with dl1:
+            st.markdown("**CSV — Meu Dinheiro Web**")
+            df_csv_md = montar_csv_meu_dinheiro(df_novos, conta_nome=CONTA_PADRAO)
+            buf = _io.StringIO()
+            df_csv_md.to_csv(buf, index=False, sep=",", quoting=_csv.QUOTE_MINIMAL)
+            if st.download_button(f"⬇️ Baixar CSV ({n_novos_export} lançamentos)", data=buf.getvalue().encode("utf-8"),
+                                   file_name=f"{nome_base}_meu_dinheiro.csv", mime="text/csv"):
+                for _, row in df_novos.iterrows():
+                    cfg["exportados"].add(get_chave(row))
+                st.success(f"✅ {n_novos_export} marcados como exportados!")
+                st.rerun()
+
+        with dl2:
+            st.markdown("**Excel — revisão**")
+            st.download_button("⬇️ Baixar Excel", data=to_excel_bytes(df_edit),
+                               file_name=f"{nome_base}.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        with dl3:
+            st.markdown("**OFX — extrato**")
+            st.download_button("⬇️ Baixar OFX", data=gerar_ofx(df_edit, conta_nome=nome_aba).encode("utf-8"),
+                               file_name=f"{nome_base}.ofx", mime="application/octet-stream")
+
+        # Limpar exportados
+        if cfg["exportados"]:
+            with st.expander("🔧 Controle de exportações"):
+                st.caption(f"{len(cfg['exportados'])} lançamentos marcados como exportados nesta sessão.")
+                if st.button("🗑️ Limpar histórico de exportações", key="btn_clear_exp"):
+                    cfg["exportados"] = set()
+                    st.rerun()
+
 
 
 # ════════════════════════════════════════════════════════════════════════════
