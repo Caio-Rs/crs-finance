@@ -1561,38 +1561,76 @@ elif page == "classificador":
         """
         Resolve contato do input para nome exato do Meu Dinheiro.
         Retorna (nome_resolvido, status):
-          status = "mapa"    → encontrado no dicionário manual
-          status = "auto"    → encontrado na base MD por match de palavra inteira
-          status = "sem_match" → não encontrou, retorna original com ⚠️
+          status = "mapa"      → encontrado no dicionário manual
+          status = "auto"      → encontrado na base MD por match de palavra inteira
+          status = "fuzzy"     → match heurístico aproximado (difflib)
+          status = "sem_match" → não encontrou, retorna original
         """
         import unicodedata as _ud
+        import difflib
+
+        _TITULOS = {'dr','dra','prof','profa','mr','ms','sr','sra','me','pe','rev'}
+
         def _n(s):
-            return ''.join(c for c in _ud.normalize('NFD', str(s).lower().strip()) if _ud.category(c) != 'Mn')
+            """Normaliza: minúsculo, sem acento, remove títulos/prefixos."""
+            s = str(s).lower().strip()
+            tokens = [w.rstrip('.') for w in s.split()]
+            tokens = [w for w in tokens if w not in _TITULOS]
+            s = ' '.join(tokens)
+            return ''.join(c for c in _ud.normalize('NFD', s) if _ud.category(c) != 'Mn')
 
         cn = _n(contato_input)
+        if not cn:
+            return contato_input, "sem_match"
+
+        # Pré-processa base uma única vez
+        base_norm = [(_n(nome), nome) for nome in base_md]
 
         # Camada 1: dicionário manual (match por palavra-chave)
         for chave, nome_md in mapa.items():
             if _n(chave) in cn or cn in _n(chave):
                 return nome_md, "mapa"
 
-        # Camada 2: auto-match na base MD
-        # Usa match de palavra INTEIRA para evitar "iara" dentro de "naiara"
-        palavras_input = [w for w in cn.split() if len(w) > 3]
+        # Camada 2: match de palavra INTEIRA (evita "iara" dentro de "naiara")
+        palavras_input = [w for w in cn.split() if len(w) >= 3]
         melhor_match = None
         melhor_score = 0
-        for nome_md in base_md:
-            nome_md_n = _n(nome_md)
-            palavras_md = set(nome_md_n.split())
-            score = sum(1 for p in palavras_input if p in palavras_md)  # match de palavra EXATA
+        for nome_n, nome_orig in base_norm:
+            palavras_md = set(nome_n.split())
+            score = sum(1 for p in palavras_input if p in palavras_md)
             if score > melhor_score:
                 melhor_score = score
-                melhor_match = nome_md
-
+                melhor_match = nome_orig
         if melhor_score >= 1 and melhor_match:
             return melhor_match, "auto"
 
-        # Camada 3: sem match
+        # Camada 3: match heurístico (substring + token fuzzy + SequenceMatcher)
+        melhor_fuzzy = None
+        melhor_ratio = 0.0
+        for nome_n, nome_orig in base_norm:
+            ratio = 0.0
+            # 3a: alguma palavra do input aparece como substring no nome da base (≥4 chars)
+            if any(p in nome_n for p in palavras_input if len(p) >= 4):
+                ratio = 0.85
+            else:
+                # 3b: match difuso token a token
+                for p in palavras_input:
+                    if len(p) >= 4:
+                        tok_matches = difflib.get_close_matches(p, nome_n.split(), n=1, cutoff=0.80)
+                        if tok_matches:
+                            ratio = max(ratio, 0.78)
+                            break
+                # 3c: SequenceMatcher sobre string completa (fallback)
+                if ratio < 0.70:
+                    ratio = max(ratio, difflib.SequenceMatcher(None, cn, nome_n).ratio())
+            if ratio > melhor_ratio:
+                melhor_ratio = ratio
+                melhor_fuzzy = nome_orig
+
+        if melhor_ratio >= 0.72 and melhor_fuzzy:
+            return melhor_fuzzy, "fuzzy"
+
+        # Camada 4: sem match
         return contato_input, "sem_match"
 
     def carregar_regras_aprendidas():
@@ -2192,19 +2230,30 @@ elif page == "classificador":
             col.markdown(f'<div class="metric-card"><div class="metric-label">{lbl}</div><div class="metric-value {cls}">{val}</div></div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        # ── Alerta de contatos sem match ─────────────────────────────────────
+        # ── Alertas de contatos sem match / fuzzy ────────────────────────────
         if "_status_contato" in df_class.columns:
             n_sem_match = (df_class["_status_contato"] == "sem_match").sum()
+            n_fuzzy     = (df_class["_status_contato"] == "fuzzy").sum()
             if n_sem_match > 0:
                 nomes_sem = df_class[df_class["_status_contato"]=="sem_match"]["Contato MD"].tolist()
                 nomes_uniq = list(dict.fromkeys(nomes_sem))[:5]
                 st.markdown(f"""
                 <div style="background:#422006;border-left:3px solid #f97316;border-radius:0 8px 8px 0;
-                            padding:10px 14px;font-size:0.82rem;margin-bottom:12px;">
+                            padding:10px 14px;font-size:0.82rem;margin-bottom:8px;">
                     ⚠️ <strong style="color:#fcd34d;">{n_sem_match} contato(s) sem match</strong>
                     <span style="color:#fed7aa;"> na base do Meu Dinheiro — revise na coluna <strong>Contato MD</strong>
                     ou cadastre no dicionário (aba Contatos):</span><br>
                     <span style="color:#fdba74;font-size:0.78rem;">{" · ".join(str(n) for n in nomes_uniq if n and str(n) != "nan")}</span>
+                </div>""", unsafe_allow_html=True)
+            if n_fuzzy > 0:
+                nomes_fuz = df_class[df_class["_status_contato"]=="fuzzy"]["Contato MD"].tolist()
+                nomes_fuz_uniq = list(dict.fromkeys(nomes_fuz))[:5]
+                st.markdown(f"""
+                <div style="background:#1c2a1c;border-left:3px solid #fcd34d;border-radius:0 8px 8px 0;
+                            padding:10px 14px;font-size:0.82rem;margin-bottom:8px;">
+                    🔍 <strong style="color:#fcd34d;">{n_fuzzy} contato(s) com match heurístico</strong>
+                    <span style="color:#d1fae5;"> — verifique se o nome resolvido está correto:</span><br>
+                    <span style="color:#86efac;font-size:0.78rem;">{" · ".join(str(n) for n in nomes_fuz_uniq if n and str(n) != "nan")}</span>
                 </div>""", unsafe_allow_html=True)
 
         st.markdown("""
@@ -2565,8 +2614,8 @@ elif page == "classificador":
             with tc2:
                 if teste_contato:
                     nome_res, status_res = resolver_contato(teste_contato, carregar_mapa_contatos(), base_atual)
-                    cores = {"mapa":"#4ade80","auto":"#93c5fd","sem_match":"#f97316"}
-                    labels = {"mapa":"Dicionário manual","auto":"Auto-match base MD","sem_match":"⚠️ Sem match"}
+                    cores = {"mapa":"#4ade80","auto":"#93c5fd","fuzzy":"#fcd34d","sem_match":"#f97316"}
+                    labels = {"mapa":"Dicionário manual","auto":"Auto-match exato","fuzzy":"🔍 Match heurístico","sem_match":"⚠️ Sem match"}
                     st.markdown(f'''
                     <div style="background:#1B2A4A;border-radius:8px;padding:10px 14px;margin-top:4px;font-size:0.85rem;">
                         <span style="color:{cores[status_res]};font-weight:600;">{labels[status_res]}</span><br>
