@@ -1568,8 +1568,17 @@ elif page == "classificador":
         """
         import unicodedata as _ud
         import difflib
+        import re as _re
 
-        _TITULOS = {'dr','dra','prof','profa','mr','ms','sr','sra','me','pe','rev'}
+        _TITULOS = {
+            'dr','dra','prof','profa','mr','ms','sr','sra','me','pe','rev',
+            'seu','dona','d','s','st','sto','sta'
+        }
+        # Preposições/artigos PT que causam false positives no word-match
+        _STOPWORDS = {
+            'das','dos','de','do','da','em','para','por','no','na',
+            'com','uma','uns','uns','que','os','as','ao','aos','num','uma'
+        }
 
         def _n(s):
             """Normaliza: minúsculo, sem acento, remove títulos/prefixos."""
@@ -1577,58 +1586,105 @@ elif page == "classificador":
             tokens = [w.rstrip('.') for w in s.split()]
             tokens = [w for w in tokens if w not in _TITULOS]
             s = ' '.join(tokens)
+            s = s.replace('/', ' ')  # trata '/' como separador
             return ''.join(c for c in _ud.normalize('NFD', s) if _ud.category(c) != 'Mn')
 
-        cn = _n(contato_input)
-        if not cn:
+        def _fragmentos(raw):
+            """
+            Retorna lista de strings candidatas a partir do input.
+            Separa por ' - ' e ' / ' para tentar cada parte independentemente.
+            Ex: 'Andrezza - Extras HAA' → ['Andrezza - Extras HAA', 'Andrezza', 'Extras HAA']
+            """
+            raw = str(raw).strip()
+            partes = [raw]
+            for sep in [' - ', ' / ']:
+                for p in _re.split(_re.escape(sep), raw):
+                    p = p.strip()
+                    if p and p not in partes:
+                        partes.append(p)
+            return partes
+
+        raw_input = str(contato_input).strip()
+        if not raw_input:
             return contato_input, "sem_match"
 
         # Pré-processa base uma única vez
         base_norm = [(_n(nome), nome) for nome in base_md]
 
-        # Camada 1: dicionário manual (match por palavra-chave)
-        for chave, nome_md in mapa.items():
-            if _n(chave) in cn or cn in _n(chave):
-                return nome_md, "mapa"
+        # Camada 1: dicionário manual — testa input completo e cada fragmento
+        for frag in _fragmentos(raw_input):
+            fn = _n(frag)
+            if not fn:
+                continue
+            for chave, nome_md in mapa.items():
+                if _n(chave) in fn or fn in _n(chave):
+                    return nome_md, "mapa"
 
-        # Camada 2: match de palavra INTEIRA (evita "iara" dentro de "naiara")
-        palavras_input = [w for w in cn.split() if len(w) >= 3]
-        melhor_match = None
-        melhor_score = 0
-        for nome_n, nome_orig in base_norm:
-            palavras_md = set(nome_n.split())
-            score = sum(1 for p in palavras_input if p in palavras_md)
-            if score > melhor_score:
-                melhor_score = score
-                melhor_match = nome_orig
-        if melhor_score >= 1 and melhor_match:
-            return melhor_match, "auto"
+        def _match_string(cn, base_norm):
+            """Tenta camadas 2 e 3 para uma string normalizada. Retorna (score, nome_orig, tier)."""
+            if not cn:
+                return 0.0, None, None
+            # Filtra stopwords e tokens curtos para evitar false positives
+            palavras = [w for w in cn.split() if len(w) >= 3 and w not in _STOPWORDS]
+            if not palavras:
+                return 0.0, None, None
 
-        # Camada 3: match heurístico (substring + token fuzzy + SequenceMatcher)
-        melhor_fuzzy = None
-        melhor_ratio = 0.0
-        for nome_n, nome_orig in base_norm:
-            ratio = 0.0
-            # 3a: alguma palavra do input aparece como substring no nome da base (≥4 chars)
-            if any(p in nome_n for p in palavras_input if len(p) >= 4):
-                ratio = 0.85
-            else:
-                # 3b: match difuso token a token
-                for p in palavras_input:
-                    if len(p) >= 4:
-                        tok_matches = difflib.get_close_matches(p, nome_n.split(), n=1, cutoff=0.80)
-                        if tok_matches:
-                            ratio = max(ratio, 0.78)
-                            break
-                # 3c: SequenceMatcher sobre string completa (fallback)
-                if ratio < 0.70:
-                    ratio = max(ratio, difflib.SequenceMatcher(None, cn, nome_n).ratio())
-            if ratio > melhor_ratio:
-                melhor_ratio = ratio
-                melhor_fuzzy = nome_orig
+            # Camada 2: match de palavra INTEIRA (evita "iara" dentro de "naiara")
+            melhor_match = None
+            melhor_score = 0
+            for nome_n, nome_orig in base_norm:
+                palavras_md = set(w for w in nome_n.split() if w not in _STOPWORDS)
+                score = sum(1 for p in palavras if p in palavras_md)
+                if score > melhor_score:
+                    melhor_score = score
+                    melhor_match = nome_orig
+            if melhor_score >= 1 and melhor_match:
+                return float(melhor_score) + 10, melhor_match, "auto"
 
-        if melhor_ratio >= 0.72 and melhor_fuzzy:
-            return melhor_fuzzy, "fuzzy"
+            # Camada 3: match heurístico (só para inputs curtos; descrições longas viram sem_match)
+            if len(palavras) > 3:
+                return 0.0, None, None
+            melhor_fuzzy = None
+            melhor_ratio = 0.0
+            for nome_n, nome_orig in base_norm:
+                ratio = 0.0
+                # 3a: palavra do input como substring no nome da base (≥4 chars)
+                if any(p in nome_n for p in palavras if len(p) >= 4):
+                    ratio = 0.85
+                else:
+                    # 3b: match difuso token a token (cutoff 0.85 evita "pacientes"≈"clientes")
+                    tokens_md = [w for w in nome_n.split() if w not in _STOPWORDS]
+                    for p in palavras:
+                        if len(p) >= 4:
+                            tok_matches = difflib.get_close_matches(p, tokens_md, n=1, cutoff=0.85)
+                            if tok_matches:
+                                ratio = max(ratio, 0.78)
+                                break
+                    # 3c: SequenceMatcher sobre string completa (fallback)
+                    if ratio < 0.70:
+                        ratio = max(ratio, difflib.SequenceMatcher(None, cn, nome_n).ratio())
+                if ratio > melhor_ratio:
+                    melhor_ratio = ratio
+                    melhor_fuzzy = nome_orig
+            if melhor_ratio >= 0.75 and melhor_fuzzy:
+                return melhor_ratio, melhor_fuzzy, "fuzzy"
+
+            return 0.0, None, None
+
+        # Testa input completo + fragmentos, fica com o melhor resultado
+        melhor_score_global = 0.0
+        melhor_nome_global = None
+        melhor_tier_global = None
+        for frag in _fragmentos(raw_input):
+            fn = _n(frag)
+            score, nome, tier = _match_string(fn, base_norm)
+            if score > melhor_score_global:
+                melhor_score_global = score
+                melhor_nome_global = nome
+                melhor_tier_global = tier
+
+        if melhor_nome_global:
+            return melhor_nome_global, melhor_tier_global
 
         # Camada 4: sem match
         return contato_input, "sem_match"
