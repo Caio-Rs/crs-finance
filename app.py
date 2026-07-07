@@ -6,6 +6,19 @@ import io
 import json
 from datetime import datetime
 
+# ── Persistent config store (module-level so @st.cache_resource survives re-runs) ──
+@st.cache_resource
+def _cfg_store():
+    """Retorna dict mutável compartilhado entre sessões (persiste até restart do servidor)."""
+    return {
+        "plano":      {},    # {cat: [sub, ...]}
+        "base_md":    [],    # [nome_str, ...]   — PF + PJ unificados
+        "matriz":     [],    # [{"cf","cat","sub","tipo_es"}, ...]
+        "mapa":       {},    # {alias: nome_md}  — dicionário manual
+        "regras":     [],    # [{tipo, contato/palavra, mov, categoria, subcategoria}]
+        "exportados": set(), # chaves já exportadas
+    }
+
 # ── Configuração da página ────────────────────────────────────────────────────
 st.set_page_config(
     page_title="CRS Finance",
