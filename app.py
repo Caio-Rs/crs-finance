@@ -1971,10 +1971,17 @@ elif page == "classificador":
                         cat, sub = buscar_categoria_matriz(nome_md, tmov)
                         if cat: conf = "Matriz"
 
-                    # Regra 2 — DFC automático: "Cx" ou "Caixa" na Descrição
+                    # Regra 2 — DFC automático: "Cx"/"Caixa" na Descrição OU no Contato
                     if not cat:
-                        desc_n = _norm(descricao)
-                        if any(tok in desc_n.split() for tok in ["cx","caixa","caixinha"]) or                            any(p in desc_n for p in ["cx do dia","caixa do dia","caixa dia"]):
+                        desc_n    = _norm(descricao)
+                        contato_n2 = _norm(contato)
+                        _is_dfc = (
+                            any(tok in desc_n.split() for tok in ["cx","caixa","caixinha"]) or
+                            any(p in desc_n for p in ["cx do dia","caixa do dia","caixa dia","fechamento caixa"]) or
+                            any(tok in contato_n2.split() for tok in ["cx","caixa","caixinha"]) or
+                            any(p in contato_n2 for p in ["cx do dia","caixa do dia"])
+                        )
+                        if _is_dfc:
                             cat, sub = buscar_categoria_dfc(tipo_ct, tmov)
                             conf = "DFC-Auto"
 
@@ -2048,23 +2055,30 @@ elif page == "classificador":
 
         st.markdown('<div style="background:#1B2A4A;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:.82rem;color:#C9A84C;">✏️ Edite <strong>Tipo</strong>, <strong>Categoria</strong>, <strong>SubCategoria</strong> e <strong>Contato MD</strong> diretamente na tabela.</div>', unsafe_allow_html=True)
 
+        # Colunas da tabela de revisão — só o que o usuário precisa ver/editar
+        _COLS_SHOW = ["Data","Contato","Descricao","Entrada","Saida",
+                      "Tipo","Conta Destino","Categoria","SubCategoria",
+                      "Contato MD","Confiança","Status"]
+        _cols_ok = [c for c in _COLS_SHOW if c in df_cls.columns]
+
         df_edit = st.data_editor(
             df_cls,
             column_config={
-                "Tipo": st.column_config.SelectboxColumn("Tipo", options=["Receita","Despesa","Transferência"], width="small"),
+                "Tipo":          st.column_config.SelectboxColumn("Tipo", options=["Receita","Despesa","Transferência"], width="small"),
                 "Conta Destino": st.column_config.SelectboxColumn("Conta Destino", options=CONTAS_DISP, width="medium"),
                 "Categoria":     st.column_config.SelectboxColumn("Categoria",    options=PLANO_CATS, width="large"),
                 "SubCategoria":  st.column_config.SelectboxColumn("SubCategoria", options=subs_flat,  width="large"),
                 "Contato MD":    st.column_config.TextColumn("Contato MD", width="medium"),
                 "Status":        st.column_config.TextColumn("Status", disabled=True, width="small"),
                 "Confiança":     st.column_config.TextColumn("Confiança", disabled=True, width="small"),
-                "Contato":       st.column_config.TextColumn("Contato", width="medium"),
-                "Descricao":     st.column_config.TextColumn("Descrição", disabled=True),
+                "Contato":       st.column_config.TextColumn("Contato (bruto)", disabled=True, width="medium"),
+                "Descricao":     st.column_config.TextColumn("Descrição", disabled=True, width="medium"),
                 "Data":          st.column_config.TextColumn("Data", disabled=True, width="small"),
-                "Entrada":       st.column_config.TextColumn("Entrada", disabled=True, width="small"),
-                "Saida":         st.column_config.TextColumn("Saída",   disabled=True, width="small"),
-                "_st_ct":        st.column_config.TextColumn("_st_ct", disabled=True),
+                "Entrada":       st.column_config.TextColumn("Entrada R$", disabled=True, width="small"),
+                "Saida":         st.column_config.TextColumn("Saída R$",   disabled=True, width="small"),
+                "_st_ct":        None,
             },
+            column_order=_cols_ok,
             use_container_width=True, hide_index=True, key="editor_cls",
         )
 
