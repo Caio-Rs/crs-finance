@@ -11,12 +11,13 @@ from datetime import datetime
 def _cfg_store():
     """Retorna dict mutável compartilhado entre sessões (persiste até restart do servidor)."""
     return {
-        "plano":      {},    # {cat: [sub, ...]}
-        "base_md":    [],    # [nome_str, ...]   — PF + PJ unificados
-        "matriz":     [],    # [{"cf","cat","sub","tipo_es"}, ...]
-        "mapa":       {},    # {alias: nome_md}  — dicionário manual
-        "regras":     [],    # [{tipo, contato/palavra, mov, categoria, subcategoria}]
-        "exportados": set(), # chaves já exportadas
+        "plano":          {},    # {cat: [sub, ...]}
+        "base_md":        [],    # [nome_str, ...]   — PF + PJ unificados
+        "tipos_contato":  {},    # {nome_norm: "Médico"|"Terapeuta"|""}
+        "matriz":         [],    # [{"cf","cat","sub","tipo_es"}, ...]
+        "mapa":           {},    # {alias: nome_md}  — dicionário manual
+        "regras":         [],    # [{tipo, contato/palavra, mov, categoria, subcategoria}]
+        "exportados":     set(), # chaves já exportadas
     }
 
 # ── Configuração da página ────────────────────────────────────────────────────
@@ -1508,8 +1509,9 @@ elif page == "classificador":
             if s > best_s:
                 best_s, best_n, best_t = s, n, t
         if best_n:
-            return best_n, best_t
-        return raw, "sem_match"
+            tipo_ct = cfg["tipos_contato"].get(_norm(best_n), "")
+            return best_n, best_t, tipo_ct
+        return raw, "sem_match", ""
 
     def buscar_categoria_matriz(contato_md, tipo_mov):
         if not cfg["matriz"]:
@@ -1539,6 +1541,29 @@ elif page == "classificador":
                     if sum(1 for p in palavras_md if p in set(cf_v.split())) >= 1:
                         return reg.get("cat", ""), reg.get("sub", "")
         return "", ""
+
+    def buscar_categoria_dfc(tipo_contato, tmov):
+        """Cx/Caixa na Descrição → categoria DFC do Plano de Contas."""
+        tc = (tipo_contato or "").lower()
+        is_medico    = any(k in tc for k in ["medic","doctor"])
+        is_terapeuta = any(k in tc for k in ["terapeu","fisio","psico","fono","nutri","odonto"])
+        if tmov == "E":
+            cat = "10 - RECEITAS OPERACIONAIS DE CAIXA (DFC)"
+            if is_medico:
+                sub = "10.08 - Recebimento Bruto Producao - Medicos"
+            elif is_terapeuta:
+                sub = "10.09 - Recebimento Bruto Producao - Terapeutas"
+            else:
+                sub = "10.01 - Recebimento Pix/TED - Sinal de Consulta"
+        else:
+            cat = "20 - SAIDAS OPERACIONAIS DE CAIXA - REPASSE (DFC)"
+            if is_medico:
+                sub = "20.01 - Repasse Caixa - Medicos (% producao)"
+            elif is_terapeuta:
+                sub = "20.02 - Repasse Caixa - Terapeutas (% producao)"
+            else:
+                sub = "20.01 - Repasse Caixa - Medicos (% producao)"
+        return cat, sub
 
     def is_transferencia(contato, descricao):
         c = _norm(contato)
@@ -1688,16 +1713,34 @@ elif page == "classificador":
         col_pf, col_pj = st.columns(2)
         with col_pf:
             st.markdown("**Pessoa Física (PF)**")
+            st.caption("Colunas: NOME · TIPO (Médico / Terapeuta)")
             f_pf = st.file_uploader("Arquivo PF", type=["xlsx","xls"], key="cfg_pf_up", label_visibility="collapsed")
             if f_pf:
                 try:
                     df_pf = pd.read_excel(f_pf, dtype=str).fillna("")
+                    df_pf.columns = [c.strip() for c in df_pf.columns]
                     col_nome = next((c for c in df_pf.columns if "nome" in c.lower()), df_pf.columns[0])
+                    col_tipo = next((c for c in df_pf.columns if any(k in c.lower() for k in ["tipo","espec","categ","especialidade"])), None)
                     nomes_pf = [str(v).strip() for v in df_pf[col_nome] if str(v).strip() and str(v).strip() != "nan"]
                     existentes = set(cfg["base_md"])
                     novos = [n for n in nomes_pf if n not in existentes]
                     cfg["base_md"].extend(novos)
-                    st.success(f"✅ {len(novos)} contatos PF adicionados")
+                    # Salvar tipo de cada contato para classificação DFC
+                    if col_tipo:
+                        for _, row in df_pf.iterrows():
+                            nome = str(row[col_nome]).strip()
+                            tipo = str(row[col_tipo]).strip()
+                            if nome and nome.upper() != "NAN":
+                                # Normaliza tipo para "Médico" ou "Terapeuta"
+                                tipo_n = tipo.lower()
+                                if any(k in tipo_n for k in ["medic","doctor","dr"]):
+                                    tipo_norm = "Médico"
+                                elif any(k in tipo_n for k in ["terapeu","fisio","psico","fono","nutri","odonto"]):
+                                    tipo_norm = "Terapeuta"
+                                else:
+                                    tipo_norm = tipo.strip()
+                                cfg["tipos_contato"][_norm(nome)] = tipo_norm
+                    st.success(f"✅ {len(novos)} contatos PF adicionados" + (f" · coluna TIPO: {col_tipo}" if col_tipo else " (sem coluna TIPO)"))
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
@@ -1870,6 +1913,15 @@ elif page == "classificador":
         nome_aba = f_csv.name.replace(".csv","").replace(".xlsx","").replace(".xls","")
         st.markdown(f'<div style="color:#8899BB;font-size:.82rem;margin-bottom:.5rem;">Arquivo: <strong style="color:#C9A84C;">{nome_aba}</strong> · {n_total} lançamentos</div>', unsafe_allow_html=True)
 
+        # Botão para forçar reclassificação com nova config
+        col_info, col_btn = st.columns([5,1])
+        with col_btn:
+            if st.button("🔄 Reclassificar", key="btn_reclassify", use_container_width=True,
+                         help="Força nova classificação com as configurações atuais"):
+                st.session_state.pop("_cls_file_key", None)
+                st.session_state.pop("df_cls", None)
+                st.rerun()
+
         # Lançamentos já exportados
         ja_exp_count = sum(1 for _, row in df_work.iterrows() if get_chave(row) in cfg["exportados"])
         if ja_exp_count > 0:
@@ -1904,7 +1956,7 @@ elif page == "classificador":
                     tipos.append(tipo_fin)
                     contas_dest.append("")
 
-                    nome_md, st_res = resolver_contato(contato)
+                    nome_md, st_res, tipo_ct = resolver_contato(contato)
                     contatos_md.append(nome_md)
                     status_cts.append(st_res)
 
@@ -1912,9 +1964,21 @@ elif page == "classificador":
                         cats.append(""); subs.append(""); confs.append("✅ Exportado")
                         continue
 
-                    cat, sub = buscar_categoria_matriz(nome_md, tmov)
-                    conf = "Matriz" if cat else ""
+                    cat, sub, conf = "", "", ""
 
+                    # Regra 1 — Matriz do Plano de Contas (se carregada)
+                    if not cat:
+                        cat, sub = buscar_categoria_matriz(nome_md, tmov)
+                        if cat: conf = "Matriz"
+
+                    # Regra 2 — DFC automático: "Cx" ou "Caixa" na Descrição
+                    if not cat:
+                        desc_n = _norm(descricao)
+                        if any(tok in desc_n.split() for tok in ["cx","caixa","caixinha"]) or                            any(p in desc_n for p in ["cx do dia","caixa do dia","caixa dia"]):
+                            cat, sub = buscar_categoria_dfc(tipo_ct, tmov)
+                            conf = "DFC-Auto"
+
+                    # Regra 3 — Regras aprendidas pelo usuário
                     if not cat:
                         for r in cfg["regras"]:
                             if r.get("mov","") != tmov:
