@@ -1734,30 +1734,46 @@ elif page == "classificador":
         cor_mtz = "#4ade80" if n_mtz > 0 else "#f97316"
         st.markdown(f'<span style="color:{cor_mtz};font-size:.82rem;">{"✅" if n_mtz > 0 else "⚠️"} {n_mtz} regras carregadas</span>', unsafe_allow_html=True)
 
-        f_mtz = st.file_uploader("Arquivo Matriz (aba MATRIZ)", type=["xlsx","xls"], key="cfg_mtz_up")
+        st.caption("Colunas esperadas: **CLIENTE/FORNECEDOR · CATEGORIA · SUBCATEGORIA · TIPO · DETALHAMENTO**")
+        f_mtz = st.file_uploader("Arquivo Matriz (Excel — qualquer aba)", type=["xlsx","xls"], key="cfg_mtz_up")
         if f_mtz:
             try:
-                df_mtz = pd.read_excel(f_mtz, sheet_name="MATRIZ", dtype=str).fillna("")
-                df_mtz.columns = [c.strip() for c in df_mtz.columns]
-                col_cf  = next((c for c in df_mtz.columns if "contato" in c.lower() or c.upper() == "CF"), None)
-                col_cat = next((c for c in df_mtz.columns if "categ" in c.lower()), None)
-                col_sub = next((c for c in df_mtz.columns if "sub" in c.lower()), None)
-                col_tp  = next((c for c in df_mtz.columns if "tipo" in c.lower() or "e/s" in c.lower() or "es" == c.lower()), None)
-                if not all([col_cf, col_cat, col_sub, col_tp]):
-                    st.warning(f"Colunas esperadas: CF/Contato, Categoria, Subcategoria, Tipo E/S. Encontradas: {list(df_mtz.columns)}")
+                # Tenta aba MATRIZ primeiro; se não existir usa a primeira
+                xl = pd.ExcelFile(f_mtz)
+                sheet = "MATRIZ" if "MATRIZ" in xl.sheet_names else xl.sheet_names[0]
+                df_mtz = xl.parse(sheet, dtype=str).fillna("")
+                df_mtz.columns = [c.strip().upper() for c in df_mtz.columns]
+
+                # Mapeamento flexível dos nomes de coluna esperados
+                def _find_col(candidates, cols):
+                    for cand in candidates:
+                        if cand in cols:
+                            return cand
+                    return None
+
+                col_cf  = _find_col(["CLIENTE/FORNECEDOR","CLIENTEFORNECEDOR","CONTATO","CF"], df_mtz.columns)
+                col_cat = _find_col(["CATEGORIA"], df_mtz.columns)
+                col_sub = _find_col(["SUBCATEGORIA","SUB"], df_mtz.columns)
+                col_tp  = _find_col(["TIPO","E/S","ES","TIPO E/S"], df_mtz.columns)
+                col_det = _find_col(["DETALHAMENTO","DETALHE","DETALH"], df_mtz.columns)
+
+                faltando = [n for n, c in [("CLIENTE/FORNECEDOR",col_cf),("CATEGORIA",col_cat),("SUBCATEGORIA",col_sub),("TIPO",col_tp)] if not c]
+                if faltando:
+                    st.warning(f"⚠️ Colunas não encontradas: **{', '.join(faltando)}**. Encontradas: {list(df_mtz.columns)}")
                 else:
                     registros = []
                     for _, row in df_mtz.iterrows():
                         cf = str(row[col_cf]).strip()
-                        if cf and cf != "nan":
+                        if cf and cf.upper() != "NAN":
                             registros.append({
-                                "cf": cf,
-                                "cat": str(row[col_cat]).strip(),
-                                "sub": str(row[col_sub]).strip(),
+                                "cf":      cf,
+                                "cat":     str(row[col_cat]).strip(),
+                                "sub":     str(row[col_sub]).strip(),
                                 "tipo_es": str(row[col_tp]).strip(),
+                                "det":     str(row[col_det]).strip() if col_det else "",
                             })
                     cfg["matriz"] = registros
-                    st.success(f"✅ Matriz carregada: {len(registros)} regras")
+                    st.success(f"✅ Matriz carregada da aba **{sheet}**: {len(registros)} regras")
                     st.rerun()
             except Exception as e:
                 st.error(f"Erro ao ler Matriz: {e}")
@@ -1810,13 +1826,10 @@ elif page == "classificador":
         CONTA_PADRAO = "Caixinha 2025;2026"
 
         # Avisos de configuração incompleta
-        alertas = []
+        # Aviso opcional: base de contatos
         if not cfg["base_md"]:
-            alertas.append("Base de contatos não carregada — os nomes não serão resolvidos para o Meu Dinheiro.")
-        if not cfg["matriz"]:
-            alertas.append("Matriz do Plano de Contas não carregada — categorias não serão preenchidas automaticamente.")
-        for alerta in alertas:
-            st.warning(f"⚠️ {alerta} Configure na aba **⚙️ Configuração**.")
+            st.info("ℹ️ Base de contatos não carregada — nomes não serão resolvidos para o Meu Dinheiro. Configure em **⚙️ Configuração**.")
+        # Matriz é opcional — sem aviso bloqueante
 
         # Upload do CSV da caixinha
         f_csv = st.file_uploader("📂 Planilha da Caixinha (Excel ou CSV)", type=["xlsx","xls","csv"], key="cls_csv_up")
