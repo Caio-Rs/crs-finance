@@ -1862,76 +1862,74 @@ elif page == "classificador":
         if ja_exp_count > 0:
             st.markdown(f'<div style="background:#162236;border-left:3px solid #C9A84C;border-radius:0 8px 8px 0;padding:8px 14px;font-size:.82rem;margin-bottom:12px;">📋 <strong style="color:#C9A84C;">{ja_exp_count} lançamentos</strong> já foram exportados anteriormente. <strong style="color:#4ade80;">{n_total-ja_exp_count} novos</strong> para revisar.</div>', unsafe_allow_html=True)
 
-        if st.button("🤖  Processar e Classificar", key="btn_class", use_container_width=True):
-            tipos, contas_dest, cats, subs, confs = [], [], [], [], []
-            contatos_md, status_cts, ja_flags = [], [], []
+        # ── Auto-processo: roda sempre que o arquivo mudar ───────────────────────
+        _file_key = f"{f_csv.name}|{f_csv.size}"
+        if st.session_state.get("_cls_file_key") != _file_key:
+            with st.spinner("🤖 Classificando lançamentos…"):
+                tipos, contas_dest, cats, subs, confs = [], [], [], [], []
+                contatos_md, status_cts, ja_flags = [], [], []
 
-            for _, row in df_work.iterrows():
-                contato   = str(row.get("Contato","")).strip()
-                descricao = str(row.get("Descricao","")).strip()
-                ja_exp    = get_chave(row) in cfg["exportados"]
-                ja_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
+                for _, row in df_work.iterrows():
+                    contato   = str(row.get("Contato","")).strip()
+                    descricao = str(row.get("Descricao","")).strip()
+                    ja_exp    = get_chave(row) in cfg["exportados"]
+                    ja_flags.append("✅ Sim" if ja_exp else "🆕 Novo")
 
-                _pn = lambda x: (parse_numeric(pd.Series([x])).iloc[0] or 0.0)
-                ent = _pn(row.get("Entrada",""))
-                sai = _pn(row.get("Saida",""))
-                tmov = "E" if ent > 0 else "S"
+                    _pn = lambda x: (parse_numeric(pd.Series([x])).iloc[0] or 0.0)
+                    ent = _pn(row.get("Entrada",""))
+                    tmov = "E" if ent > 0 else "S"
 
-                transf, conta_dest = is_transferencia(contato, descricao)
-                if transf:
-                    tipos.append("Transferência")
-                    contas_dest.append(conta_dest)
-                    cats.append(""); subs.append(""); confs.append("Auto")
-                    contatos_md.append(""); status_cts.append("transf")
-                    continue
+                    transf, conta_dest = is_transferencia(contato, descricao)
+                    if transf:
+                        tipos.append("Transferência")
+                        contas_dest.append(conta_dest)
+                        cats.append(""); subs.append(""); confs.append("Auto")
+                        contatos_md.append(""); status_cts.append("transf")
+                        continue
 
-                tipo_fin = "Receita" if tmov == "E" else "Despesa"
-                tipos.append(tipo_fin)
-                contas_dest.append("")
+                    tipo_fin = "Receita" if tmov == "E" else "Despesa"
+                    tipos.append(tipo_fin)
+                    contas_dest.append("")
 
-                nome_md, st_res = resolver_contato(contato)
-                contatos_md.append(nome_md)
-                status_cts.append(st_res)
+                    nome_md, st_res = resolver_contato(contato)
+                    contatos_md.append(nome_md)
+                    status_cts.append(st_res)
 
-                if ja_exp:
-                    cats.append(""); subs.append(""); confs.append("✅ Exportado")
-                    continue
+                    if ja_exp:
+                        cats.append(""); subs.append(""); confs.append("✅ Exportado")
+                        continue
 
-                # Busca Matriz primeiro
-                cat, sub = buscar_categoria_matriz(nome_md, tmov)
-                conf = "Matriz" if cat else ""
+                    cat, sub = buscar_categoria_matriz(nome_md, tmov)
+                    conf = "Matriz" if cat else ""
 
-                # Fallback: regras aprendidas
-                if not cat:
-                    for r in cfg["regras"]:
-                        if r.get("mov","") != tmov:
-                            continue
-                        if r.get("tipo") == "contato" and r.get("contato","").lower() in contato.lower():
-                            cat, sub, conf = r["categoria"], r["subcategoria"], "Aprendida"
-                            break
-                        if r.get("tipo") == "descricao":
-                            for p in descricao.lower().split():
-                                if len(p) > 4 and p == r.get("palavra",""):
-                                    cat, sub, conf = r["categoria"], r["subcategoria"], "Aprendida"
-                                    break
-                        if cat:
-                            break
+                    if not cat:
+                        for r in cfg["regras"]:
+                            if r.get("mov","") != tmov:
+                                continue
+                            if r.get("tipo") == "contato" and r.get("contato","").lower() in contato.lower():
+                                cat, sub, conf = r["categoria"], r["subcategoria"], "Aprendida"
+                                break
+                            if r.get("tipo") == "descricao":
+                                for p in descricao.lower().split():
+                                    if len(p) > 4 and p == r.get("palavra",""):
+                                        cat, sub, conf = r["categoria"], r["subcategoria"], "Aprendida"
+                                        break
+                            if cat:
+                                break
 
-                conf = conf or "Manual"
-                cats.append(cat); subs.append(sub); confs.append(conf)
+                    conf = conf or "Manual"
+                    cats.append(cat); subs.append(sub); confs.append(conf)
 
-            df_work["Tipo"]         = tipos
-            df_work["Conta Destino"]= contas_dest
-            df_work["Categoria"]    = cats
-            df_work["SubCategoria"] = subs
-            df_work["Confiança"]    = confs
-            df_work["Status"]       = ja_flags
-            df_work["Contato MD"]   = contatos_md
-            df_work["_st_ct"]       = status_cts
-            st.session_state["df_cls"] = df_work.copy()
-
-        if "df_cls" not in st.session_state:
-            st.stop()
+                df_work["Tipo"]         = tipos
+                df_work["Conta Destino"]= contas_dest
+                df_work["Categoria"]    = cats
+                df_work["SubCategoria"] = subs
+                df_work["Confiança"]    = confs
+                df_work["Status"]       = ja_flags
+                df_work["Contato MD"]   = contatos_md
+                df_work["_st_ct"]       = status_cts
+                st.session_state["df_cls"]       = df_work.copy()
+                st.session_state["_cls_file_key"] = _file_key
 
         df_cls = st.session_state["df_cls"].copy()
 
